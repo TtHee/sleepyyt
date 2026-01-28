@@ -11,6 +11,8 @@
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- NoSleep.js - Prevent screen from sleeping -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -141,12 +143,21 @@
                 <label class="block text-slate-400 text-sm mb-2">
                     YouTube 網址
                 </label>
-                <input
-                    type="text"
-                    id="youtubeUrl"
-                    placeholder="貼上影片或播放清單網址"
-                    class="w-full bg-dark border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition-colors text-sm"
-                >
+                <div class="flex gap-2">
+                    <input
+                        type="text"
+                        id="youtubeUrl"
+                        placeholder="貼上影片或播放清單網址"
+                        value="https://youtube.com/playlist?list=PLTHJiIfg_SmSh939efM9kNbmyJS6z21e3&si=Igdw9lnb68DJRmtd"
+                        class="flex-1 bg-dark border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition-colors text-sm"
+                    >
+                    <button
+                        id="clearUrlBtn"
+                        class="px-3 bg-slate-700 text-slate-400 rounded-xl text-sm touch-btn"
+                    >
+                        清除
+                    </button>
+                </div>
             </div>
 
             <!-- Skip Settings Row -->
@@ -171,7 +182,7 @@
                     <input
                         type="number"
                         id="skipEnd"
-                        value="300"
+                        value="50"
                         min="0"
                         max="600"
                         class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
@@ -243,11 +254,19 @@
         let countdownInterval = null;
         let remainingSeconds = 0;
         let isPlaying = false;
-        let wakeLock = null;
+        let noSleep = null;
+
+        // Initialize NoSleep
+        try {
+            noSleep = new NoSleep();
+        } catch (e) {
+            console.warn('NoSleep not available:', e);
+        }
 
         // DOM Elements
         const elements = {
             youtubeUrl: document.getElementById('youtubeUrl'),
+            clearUrlBtn: document.getElementById('clearUrlBtn'),
             skipStart: document.getElementById('skipStart'),
             skipEnd: document.getElementById('skipEnd'),
             totalMins: document.getElementById('totalMins'),
@@ -328,14 +347,16 @@
             localStorage.setItem('sleepyyt_settings', JSON.stringify(settings));
         }
 
+        const DEFAULT_URL = 'https://youtube.com/playlist?list=PLTHJiIfg_SmSh939efM9kNbmyJS6z21e3&si=Igdw9lnb68DJRmtd';
+
         function loadSettings() {
             try {
                 const saved = localStorage.getItem('sleepyyt_settings');
                 if (saved) {
                     const settings = JSON.parse(saved);
-                    elements.youtubeUrl.value = settings.youtubeUrl || '';
+                    elements.youtubeUrl.value = settings.youtubeUrl || DEFAULT_URL;
                     elements.skipStart.value = settings.skipStart || 90;
-                    elements.skipEnd.value = settings.skipEnd || 300;
+                    elements.skipEnd.value = settings.skipEnd || 50;
                     elements.totalMins.value = settings.totalMins || 40;
                 }
             } catch (e) {
@@ -344,41 +365,22 @@
         }
 
         // ============================
-        // Wake Lock API (Keep Screen Awake)
+        // NoSleep (Keep Screen Awake)
         // ============================
 
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock activated');
-
-                    wakeLock.addEventListener('release', () => {
-                        console.log('Wake Lock released');
-                    });
-                }
-            } catch (e) {
-                console.warn('Wake Lock not supported:', e);
+        function enableNoSleep() {
+            if (noSleep) {
+                noSleep.enable();
+                console.log('NoSleep enabled - screen will stay awake');
             }
         }
 
-        async function releaseWakeLock() {
-            if (wakeLock) {
-                try {
-                    await wakeLock.release();
-                    wakeLock = null;
-                } catch (e) {
-                    console.warn('Error releasing wake lock:', e);
-                }
+        function disableNoSleep() {
+            if (noSleep) {
+                noSleep.disable();
+                console.log('NoSleep disabled');
             }
         }
-
-        // Re-acquire wake lock when page becomes visible again
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && isPlaying) {
-                await requestWakeLock();
-            }
-        });
 
         // ============================
         // YouTube Player Setup
@@ -534,7 +536,7 @@
                 `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        async function stopEverything() {
+        function stopEverything() {
             if (player && player.stopVideo) {
                 player.stopVideo();
             }
@@ -552,8 +554,8 @@
             isPlaying = false;
             timerPaused = false;
 
-            // Release wake lock
-            await releaseWakeLock();
+            // Disable NoSleep
+            disableNoSleep();
 
             elements.timerDisplay.classList.add('hidden');
             elements.startBtn.textContent = '🎵 開始播放';
@@ -586,7 +588,7 @@
         // Main Start Function
         // ============================
 
-        async function startPlayback() {
+        function startPlayback() {
             if (!validateInputs()) return;
 
             const url = elements.youtubeUrl.value.trim();
@@ -595,8 +597,8 @@
 
             saveSettings();
 
-            // Request wake lock to keep screen on
-            await requestWakeLock();
+            // Enable NoSleep to keep screen on
+            enableNoSleep();
 
             if (parsed.type === 'playlist') {
                 // Load as playlist
@@ -637,6 +639,10 @@
 
         elements.pauseTimerBtn.addEventListener('click', togglePauseTimer);
         elements.stopTimerBtn.addEventListener('click', stopEverything);
+        elements.clearUrlBtn.addEventListener('click', () => {
+            elements.youtubeUrl.value = '';
+            elements.youtubeUrl.focus();
+        });
 
         document.querySelectorAll('.time-btn').forEach(btn => {
             btn.addEventListener('click', () => {
