@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SleepyYT">
+    <meta name="theme-color" content="#0f172a">
+    <title>SleepyYT</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0f172a',
+                        darker: '#020617',
+                        accent: '#fb923c'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* iOS Safe Area */
+        body {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #fb923c;
+            border-radius: 2px;
+        }
+
+        /* Player container - smaller preview size */
+        .player-wrapper {
+            position: relative;
+            padding-bottom: 35%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        .player-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+
+        /* Input styling */
+        input[type="number"],
+        input[type="text"] {
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Touch feedback */
+        .touch-btn:active {
+            transform: scale(0.97);
+            transition: transform 0.1s;
+        }
+    </style>
+</head>
+<body class="bg-dark min-h-screen text-white font-sans">
+    <div class="max-w-lg mx-auto px-4 py-4">
+
+        <!-- Header + Timer Combined -->
+        <header class="text-center mb-4">
+            <h1 class="text-xl font-bold text-accent flex items-center justify-center gap-2">
+                <span>🌙</span>
+                <span>SleepyYT</span>
+            </h1>
+        </header>
+
+        <!-- Timer Display (inline style) -->
+        <div id="timerDisplay" class="hidden mb-4">
+            <div class="bg-darker rounded-xl p-4 border border-slate-800">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="text-slate-400 text-xs">剩餘時間</p>
+                    <p id="timerCountdown" class="text-3xl font-mono font-bold text-accent">
+                        00:00
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <button
+                        id="pauseTimerBtn"
+                        class="flex-1 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm touch-btn"
+                    >
+                        ⏸️ 暫停
+                    </button>
+                    <button
+                        id="stopTimerBtn"
+                        class="flex-1 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm touch-btn"
+                    >
+                        ⏹️ 停止
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- YouTube Player (smaller preview) -->
+        <div class="mb-4">
+            <div class="player-wrapper bg-darker border border-slate-800">
+                <div id="player"></div>
+            </div>
+        </div>
+
+        <!-- Status Indicator -->
+        <div id="statusBar" class="mb-4 text-center">
+            <span id="statusText" class="text-slate-500 text-sm">
+                等待設定...
+            </span>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="bg-darker rounded-xl p-4 border border-slate-800 mb-4">
+
+            <!-- YouTube URL -->
+            <div class="mb-4">
+                <label class="block text-slate-400 text-sm mb-2">
+                    YouTube 網址
+                </label>
+                <input
+                    type="text"
+                    id="youtubeUrl"
+                    placeholder="貼上影片或播放清單網址"
+                    class="w-full bg-dark border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition-colors text-sm"
+                >
+            </div>
+
+            <!-- Skip Settings Row -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-slate-400 text-xs mb-1">
+                        跳過片頭 (秒)
+                    </label>
+                    <input
+                        type="number"
+                        id="skipStart"
+                        value="90"
+                        min="0"
+                        max="600"
+                        class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
+                    >
+                </div>
+                <div>
+                    <label class="block text-slate-400 text-xs mb-1">
+                        跳過片尾 (秒)
+                    </label>
+                    <input
+                        type="number"
+                        id="skipEnd"
+                        value="300"
+                        min="0"
+                        max="600"
+                        class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
+                    >
+                </div>
+            </div>
+
+            <!-- Sleep Timer -->
+            <div class="mb-4">
+                <label class="block text-slate-400 text-xs mb-1">
+                    睡眠定時 (分鐘)
+                </label>
+                <div class="flex items-center gap-2">
+                    <button
+                        class="time-btn w-10 h-10 bg-dark border border-slate-700 rounded-lg text-lg touch-btn"
+                        data-adjust="-10"
+                    >−</button>
+                    <input
+                        type="number"
+                        id="totalMins"
+                        value="40"
+                        min="5"
+                        max="180"
+                        class="flex-1 bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center text-lg font-semibold focus:outline-none focus:border-accent transition-colors"
+                    >
+                    <button
+                        class="time-btn w-10 h-10 bg-dark border border-slate-700 rounded-lg text-lg touch-btn"
+                        data-adjust="10"
+                    >+</button>
+                </div>
+            </div>
+
+            <!-- Quick Time Buttons -->
+            <div class="flex gap-2">
+                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="20">20分</button>
+                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="40">40分</button>
+                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="60">60分</button>
+                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="90">90分</button>
+            </div>
+        </div>
+
+        <!-- Action Button -->
+        <button
+            id="startBtn"
+            class="w-full py-4 bg-accent text-dark font-bold text-lg rounded-xl touch-btn shadow-lg shadow-accent/20"
+        >
+            🎵 開始播放
+        </button>
+
+        <!-- Footer Tips -->
+        <footer class="mt-4 text-center">
+            <p class="text-slate-600 text-xs">
+                💡 請將此網頁「加入主畫面」並保持螢幕開啟以確保背景播放
+            </p>
+        </footer>
+
+    </div>
+
+    <!-- YouTube IFrame API -->
+    <script>
+        // ============================
+        // SleepyYT - Main Application
+        // ============================
+
+        // Global variables
+        let player = null;
+        let sleepTimerId = null;
+        let progressCheckerId = null;
+        let countdownInterval = null;
+        let remainingSeconds = 0;
+        let isPlaying = false;
+        let wakeLock = null;
+
+        // DOM Elements
+        const elements = {
+            youtubeUrl: document.getElementById('youtubeUrl'),
+            skipStart: document.getElementById('skipStart'),
+            skipEnd: document.getElementById('skipEnd'),
+            totalMins: document.getElementById('totalMins'),
+            startBtn: document.getElementById('startBtn'),
+            pauseTimerBtn: document.getElementById('pauseTimerBtn'),
+            stopTimerBtn: document.getElementById('stopTimerBtn'),
+            timerDisplay: document.getElementById('timerDisplay'),
+            timerCountdown: document.getElementById('timerCountdown'),
+            statusText: document.getElementById('statusText')
+        };
+
+        // Timer state
+        let timerPaused = false;
+
+        // ============================
+        // URL Parsing Function
+        // ============================
+
+        function parseYouTubeUrl(url) {
+            if (!url) return null;
+
+            url = url.trim();
+
+            // Result object
+            let result = {
+                type: null,      // 'video' or 'playlist'
+                videoId: null,
+                playlistId: null
+            };
+
+            // Check for playlist ID
+            const playlistMatch = url.match(/[?&]list=([^&]+)/);
+            if (playlistMatch) {
+                result.playlistId = playlistMatch[1];
+                result.type = 'playlist';
+            }
+
+            // Check for video ID in various formats
+            const videoPatterns = [
+                /youtu\.be\/([^?&]+)/,                    // youtu.be/xxxxx
+                /youtube\.com\/watch\?v=([^&]+)/,         // youtube.com/watch?v=xxxxx
+                /youtube\.com\/embed\/([^?&]+)/,          // youtube.com/embed/xxxxx
+                /youtube\.com\/v\/([^?&]+)/,              // youtube.com/v/xxxxx
+                /youtube\.com\/shorts\/([^?&]+)/,         // youtube.com/shorts/xxxxx
+            ];
+
+            for (const pattern of videoPatterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    result.videoId = match[1];
+                    if (!result.type) {
+                        result.type = 'video';
+                    }
+                    break;
+                }
+            }
+
+            // If still no match, check if it's a raw ID
+            if (!result.type && /^[A-Za-z0-9_-]{11}$/.test(url)) {
+                result.videoId = url;
+                result.type = 'video';
+            }
+
+            return result.type ? result : null;
+        }
+
+        // ============================
+        // LocalStorage Functions
+        // ============================
+
+        function saveSettings() {
+            const settings = {
+                youtubeUrl: elements.youtubeUrl.value,
+                skipStart: elements.skipStart.value,
+                skipEnd: elements.skipEnd.value,
+                totalMins: elements.totalMins.value
+            };
+            localStorage.setItem('sleepyyt_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            try {
+                const saved = localStorage.getItem('sleepyyt_settings');
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    elements.youtubeUrl.value = settings.youtubeUrl || '';
+                    elements.skipStart.value = settings.skipStart || 90;
+                    elements.skipEnd.value = settings.skipEnd || 300;
+                    elements.totalMins.value = settings.totalMins || 40;
+                }
+            } catch (e) {
+                console.warn('Failed to load settings:', e);
+            }
+        }
+
+        // ============================
+        // Wake Lock API (Keep Screen Awake)
+        // ============================
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock activated');
+
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                    });
+                }
+            } catch (e) {
+                console.warn('Wake Lock not supported:', e);
+            }
+        }
+
+        async function releaseWakeLock() {
+            if (wakeLock) {
+                try {
+                    await wakeLock.release();
+                    wakeLock = null;
+                } catch (e) {
+                    console.warn('Error releasing wake lock:', e);
+                }
+            }
+        }
+
+        // Re-acquire wake lock when page becomes visible again
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && isPlaying) {
+                await requestWakeLock();
+            }
+        });
+
+        // ============================
+        // YouTube Player Setup
+        // ============================
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    'playsinline': 1,
+                    'rel': 0,
+                    'modestbranding': 1,
+                    'fs': 0,
+                    'controls': 1,
+                    'enablejsapi': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            updateStatus('播放器已就緒');
+        }
+
+        function onPlayerStateChange(event) {
+            // YT.PlayerState: PLAYING=1, PAUSED=2, ENDED=0, BUFFERING=3
+
+            if (event.data === YT.PlayerState.PLAYING) {
+                isPlaying = true;
+                handleVideoStart();
+                startProgressChecker();
+                updateStatus('播放中...');
+            } else if (event.data === YT.PlayerState.PAUSED) {
+                isPlaying = false;
+                stopProgressChecker();
+                updateStatus('已暫停');
+            } else if (event.data === YT.PlayerState.ENDED) {
+                updateStatus('下一首...');
+            }
+        }
+
+        function onPlayerError(event) {
+            console.error('Player error:', event.data);
+            updateStatus('播放錯誤，嘗試下一首...');
+            setTimeout(() => {
+                if (player && player.nextVideo) {
+                    player.nextVideo();
+                }
+            }, 1000);
+        }
+
+        // ============================
+        // Playback Control Logic
+        // ============================
+
+        function handleVideoStart() {
+            const skipStart = parseInt(elements.skipStart.value) || 0;
+
+            if (skipStart > 0) {
+                const currentTime = player.getCurrentTime();
+                if (currentTime < skipStart) {
+                    player.seekTo(skipStart, true);
+                    updateStatus(`已跳過片頭 ${skipStart} 秒`);
+                }
+            }
+        }
+
+        function startProgressChecker() {
+            stopProgressChecker();
+
+            progressCheckerId = setInterval(() => {
+                if (!player || !isPlaying) return;
+
+                try {
+                    const duration = player.getDuration();
+                    const currentTime = player.getCurrentTime();
+                    const skipEnd = parseInt(elements.skipEnd.value) || 0;
+
+                    if (duration > 0 && skipEnd > 0) {
+                        const timeRemaining = duration - currentTime;
+                        if (timeRemaining <= skipEnd && timeRemaining > 0) {
+                            updateStatus('跳過片尾，下一首...');
+                            player.nextVideo();
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Progress check error:', e);
+                }
+            }, 1000);
+        }
+
+        function stopProgressChecker() {
+            if (progressCheckerId) {
+                clearInterval(progressCheckerId);
+                progressCheckerId = null;
+            }
+        }
+
+        // ============================
+        // Sleep Timer Functions
+        // ============================
+
+        function startSleepTimer() {
+            const totalMins = parseInt(elements.totalMins.value) || 40;
+            remainingSeconds = totalMins * 60;
+            timerPaused = false;
+
+            elements.timerDisplay.classList.remove('hidden');
+            elements.pauseTimerBtn.textContent = '⏸️ 暫停';
+            updateCountdownDisplay();
+
+            countdownInterval = setInterval(() => {
+                if (!timerPaused) {
+                    remainingSeconds--;
+                    updateCountdownDisplay();
+
+                    if (remainingSeconds <= 0) {
+                        stopEverything();
+                    }
+                }
+            }, 1000);
+        }
+
+        function togglePauseTimer() {
+            timerPaused = !timerPaused;
+
+            if (timerPaused) {
+                // Pause video too
+                if (player && player.pauseVideo) {
+                    player.pauseVideo();
+                }
+                elements.pauseTimerBtn.textContent = '▶️ 繼續';
+                updateStatus('已暫停');
+            } else {
+                // Resume video
+                if (player && player.playVideo) {
+                    player.playVideo();
+                }
+                elements.pauseTimerBtn.textContent = '⏸️ 暫停';
+                updateStatus('播放中...');
+            }
+        }
+
+        function updateCountdownDisplay() {
+            const mins = Math.floor(remainingSeconds / 60);
+            const secs = remainingSeconds % 60;
+            elements.timerCountdown.textContent =
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        async function stopEverything() {
+            if (player && player.stopVideo) {
+                player.stopVideo();
+            }
+
+            if (sleepTimerId) {
+                clearTimeout(sleepTimerId);
+                sleepTimerId = null;
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+
+            stopProgressChecker();
+            isPlaying = false;
+            timerPaused = false;
+
+            // Release wake lock
+            await releaseWakeLock();
+
+            elements.timerDisplay.classList.add('hidden');
+            elements.startBtn.textContent = '🎵 開始播放';
+            elements.startBtn.classList.remove('bg-slate-700');
+            elements.startBtn.classList.add('bg-accent');
+            updateStatus('播放已停止');
+        }
+
+        // ============================
+        // UI Helper Functions
+        // ============================
+
+        function updateStatus(text) {
+            elements.statusText.textContent = text;
+        }
+
+        function validateInputs() {
+            const url = elements.youtubeUrl.value.trim();
+            const parsed = parseYouTubeUrl(url);
+
+            if (!parsed) {
+                alert('請輸入有效的 YouTube 網址');
+                elements.youtubeUrl.focus();
+                return false;
+            }
+            return true;
+        }
+
+        // ============================
+        // Main Start Function
+        // ============================
+
+        async function startPlayback() {
+            if (!validateInputs()) return;
+
+            const url = elements.youtubeUrl.value.trim();
+            const parsed = parseYouTubeUrl(url);
+            const skipStart = parseInt(elements.skipStart.value) || 0;
+
+            saveSettings();
+
+            // Request wake lock to keep screen on
+            await requestWakeLock();
+
+            if (parsed.type === 'playlist') {
+                // Load as playlist
+                player.loadPlaylist({
+                    list: parsed.playlistId,
+                    listType: 'playlist',
+                    index: 0,
+                    startSeconds: skipStart
+                });
+                updateStatus('載入播放清單中...');
+            } else {
+                // Load single video (loop enabled)
+                player.loadVideoById({
+                    videoId: parsed.videoId,
+                    startSeconds: skipStart
+                });
+                updateStatus('載入影片中...');
+            }
+
+            startSleepTimer();
+
+            elements.startBtn.textContent = '⏹️ 停止播放';
+            elements.startBtn.classList.remove('bg-accent');
+            elements.startBtn.classList.add('bg-slate-700');
+        }
+
+        // ============================
+        // Event Listeners
+        // ============================
+
+        elements.startBtn.addEventListener('click', () => {
+            if (isPlaying || sleepTimerId) {
+                stopEverything();
+            } else {
+                startPlayback();
+            }
+        });
+
+        elements.pauseTimerBtn.addEventListener('click', togglePauseTimer);
+        elements.stopTimerBtn.addEventListener('click', stopEverything);
+
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const adjust = parseInt(btn.dataset.adjust);
+                const current = parseInt(elements.totalMins.value) || 40;
+                const newValue = Math.max(5, Math.min(180, current + adjust));
+                elements.totalMins.value = newValue;
+                saveSettings();
+            });
+        });
+
+        document.querySelectorAll('.quick-time').forEach(btn => {
+            btn.addEventListener('click', () => {
+                elements.totalMins.value = btn.dataset.mins;
+                saveSettings();
+            });
+        });
+
+        [elements.youtubeUrl, elements.skipStart, elements.skipEnd, elements.totalMins].forEach(input => {
+            input.addEventListener('change', saveSettings);
+        });
+
+        // ============================
+        // Initialization
+        // ============================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+        });
+
+        // Load YouTube IFrame API
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // Prevent accidental navigation
+        window.addEventListener('beforeunload', (e) => {
+            if (isPlaying) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>
