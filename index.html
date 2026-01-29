@@ -193,13 +193,13 @@
             <!-- Start Index -->
             <div class="mb-4">
                 <label class="block text-slate-400 text-xs mb-1">
-                    從第幾集開始（0 = 第一集）
+                    從第幾集開始
                 </label>
                 <input
                     type="number"
                     id="startIndex"
-                    value="0"
-                    min="0"
+                    value="1"
+                    min="1"
                     max="999"
                     class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
                 >
@@ -374,7 +374,7 @@
                     elements.youtubeUrl.value = settings.youtubeUrl || DEFAULT_URL;
                     elements.skipStart.value = settings.skipStart || 90;
                     elements.skipEnd.value = settings.skipEnd || 50;
-                    elements.startIndex.value = settings.startIndex || 0;
+                    elements.startIndex.value = settings.startIndex || 1;
                     elements.totalMins.value = settings.totalMins || 40;
                 }
             } catch (e) {
@@ -468,6 +468,22 @@
                     player.seekTo(skipStart, true);
                     updateStatus(`已跳過片頭 ${skipStart} 秒`);
                 }
+            }
+
+            // Save current playlist index (convert 0-based to 1-based for user)
+            saveCurrentProgress();
+        }
+
+        function saveCurrentProgress() {
+            try {
+                const currentIndex = player.getPlaylistIndex();
+                if (currentIndex >= 0) {
+                    // Save as 1-based index for user display
+                    elements.startIndex.value = currentIndex + 1;
+                    saveSettings();
+                }
+            } catch (e) {
+                // Ignore errors for single video
             }
         }
 
@@ -565,6 +581,9 @@
         }
 
         function stopEverything() {
+            // Save progress before stopping
+            saveCurrentProgress();
+
             if (player && player.stopVideo) {
                 player.stopVideo();
             }
@@ -622,7 +641,8 @@
             const url = elements.youtubeUrl.value.trim();
             const parsed = parseYouTubeUrl(url);
             const skipStart = parseInt(elements.skipStart.value) || 0;
-            const startIndex = parseInt(elements.startIndex.value) || 0;
+            // User inputs 1 for first episode, convert to 0-based index
+            const startIndex = Math.max(0, (parseInt(elements.startIndex.value) || 1) - 1);
 
             saveSettings();
 
