@@ -190,6 +190,21 @@
                 </div>
             </div>
 
+            <!-- Start Index -->
+            <div class="mb-4">
+                <label class="block text-slate-400 text-xs mb-1">
+                    從第幾集開始（0 = 第一集）
+                </label>
+                <input
+                    type="number"
+                    id="startIndex"
+                    value="0"
+                    min="0"
+                    max="999"
+                    class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
+                >
+            </div>
+
             <!-- Sleep Timer -->
             <div class="mb-4">
                 <label class="block text-slate-400 text-xs mb-1">
@@ -269,6 +284,7 @@
             clearUrlBtn: document.getElementById('clearUrlBtn'),
             skipStart: document.getElementById('skipStart'),
             skipEnd: document.getElementById('skipEnd'),
+            startIndex: document.getElementById('startIndex'),
             totalMins: document.getElementById('totalMins'),
             startBtn: document.getElementById('startBtn'),
             pauseTimerBtn: document.getElementById('pauseTimerBtn'),
@@ -342,6 +358,7 @@
                 youtubeUrl: elements.youtubeUrl.value,
                 skipStart: elements.skipStart.value,
                 skipEnd: elements.skipEnd.value,
+                startIndex: elements.startIndex.value,
                 totalMins: elements.totalMins.value
             };
             localStorage.setItem('sleepyyt_settings', JSON.stringify(settings));
@@ -357,6 +374,7 @@
                     elements.youtubeUrl.value = settings.youtubeUrl || DEFAULT_URL;
                     elements.skipStart.value = settings.skipStart || 90;
                     elements.skipEnd.value = settings.skipEnd || 50;
+                    elements.startIndex.value = settings.startIndex || 0;
                     elements.totalMins.value = settings.totalMins || 40;
                 }
             } catch (e) {
@@ -467,8 +485,18 @@
                     if (duration > 0 && skipEnd > 0) {
                         const timeRemaining = duration - currentTime;
                         if (timeRemaining <= skipEnd && timeRemaining > 0) {
-                            updateStatus('跳過片尾，下一首...');
-                            player.nextVideo();
+                            // Check if there's a next video in playlist
+                            const playlist = player.getPlaylist();
+                            const currentIndex = player.getPlaylistIndex();
+
+                            if (playlist && playlist.length > 0 && currentIndex < playlist.length - 1) {
+                                // Has next video, skip to it
+                                updateStatus('跳過片尾，下一首...');
+                                player.nextVideo();
+                            } else {
+                                // No next video, just let it play to the end
+                                // Don't do anything, let the video finish naturally
+                            }
                         }
                     }
                 } catch (e) {
@@ -594,6 +622,7 @@
             const url = elements.youtubeUrl.value.trim();
             const parsed = parseYouTubeUrl(url);
             const skipStart = parseInt(elements.skipStart.value) || 0;
+            const startIndex = parseInt(elements.startIndex.value) || 0;
 
             saveSettings();
 
@@ -601,16 +630,16 @@
             enableNoSleep();
 
             if (parsed.type === 'playlist') {
-                // Load as playlist
+                // Load as playlist with selected index
                 player.loadPlaylist({
                     list: parsed.playlistId,
                     listType: 'playlist',
-                    index: 0,
+                    index: startIndex,
                     startSeconds: skipStart
                 });
-                updateStatus('載入播放清單中...');
+                updateStatus(`載入播放清單第 ${startIndex + 1} 集...`);
             } else {
-                // Load single video (loop enabled)
+                // Load single video
                 player.loadVideoById({
                     videoId: parsed.videoId,
                     startSeconds: skipStart
@@ -661,7 +690,7 @@
             });
         });
 
-        [elements.youtubeUrl, elements.skipStart, elements.skipEnd, elements.totalMins].forEach(input => {
+        [elements.youtubeUrl, elements.skipStart, elements.skipEnd, elements.startIndex, elements.totalMins].forEach(input => {
             input.addEventListener('change', saveSettings);
         });
 
