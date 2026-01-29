@@ -395,8 +395,14 @@
 
         function disableNoSleep() {
             if (noSleep) {
-                noSleep.disable();
-                console.log('NoSleep disabled');
+                try {
+                    noSleep.disable();
+                    // Re-create NoSleep instance to ensure clean state
+                    noSleep = new NoSleep();
+                    console.log('NoSleep disabled - screen can now sleep');
+                } catch (e) {
+                    console.warn('Error disabling NoSleep:', e);
+                }
             }
         }
 
