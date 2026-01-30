@@ -264,12 +264,19 @@
 
         // Global variables
         let player = null;
-        let sleepTimerId = null;
         let progressCheckerId = null;
         let countdownInterval = null;
+        let playbackWatchdogId = null;
         let remainingSeconds = 0;
         let isPlaying = false;
         let noSleep = null;
+        let lastPlayingTime = 0;
+
+        // Session state for recovery
+        let sessionActive = false;
+        let lastParsedUrl = null;
+        let lastStartIndex = 0;
+        let lastSkipStart = 0;
 
         // Initialize NoSleep
         try {
@@ -431,11 +438,42 @@
         }
 
         function onPlayerReady(event) {
-            updateStatus('播放器已就緒');
+            console.log('Player ready, sessionActive:', sessionActive);
+
+            // If we had an active session, try to recover it
+            if (sessionActive && remainingSeconds > 0 && lastParsedUrl) {
+                console.log('Attempting to recover playback session...');
+                updateStatus('恢復播放中...');
+
+                // Re-start playback
+                setTimeout(() => {
+                    try {
+                        if (lastParsedUrl.type === 'playlist') {
+                            player.loadPlaylist({
+                                list: lastParsedUrl.playlistId,
+                                listType: 'playlist',
+                                index: lastStartIndex,
+                                startSeconds: lastSkipStart
+                            });
+                        } else if (lastParsedUrl.videoId) {
+                            player.loadVideoById({
+                                videoId: lastParsedUrl.videoId,
+                                startSeconds: lastSkipStart
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Recovery failed:', e);
+                        updateStatus('恢復失敗');
+                    }
+                }, 500);
+            } else {
+                updateStatus('播放器已就緒');
+            }
         }
 
         function onPlayerStateChange(event) {
-            // YT.PlayerState: PLAYING=1, PAUSED=2, ENDED=0, BUFFERING=3
+            // YT.PlayerState: UNSTARTED=-1, ENDED=0, PLAYING=1, PAUSED=2, BUFFERING=3, CUED=5
+            console.log('Player state changed:', event.data);
 
             if (event.data === YT.PlayerState.PLAYING) {
                 isPlaying = true;
@@ -443,11 +481,49 @@
                 startProgressChecker();
                 updateStatus('播放中...');
             } else if (event.data === YT.PlayerState.PAUSED) {
-                isPlaying = false;
-                stopProgressChecker();
+                // Only update status, don't stop progress checker immediately
+                // This prevents issues with brief pauses (buffering, etc.)
                 updateStatus('已暫停');
             } else if (event.data === YT.PlayerState.ENDED) {
-                updateStatus('下一首...');
+                console.log('Video ended, checking for next...');
+                // Check if there's a next video in playlist
+                try {
+                    const playlist = player.getPlaylist();
+                    const currentIndex = player.getPlaylistIndex();
+
+                    if (playlist && playlist.length > 0) {
+                        if (currentIndex < playlist.length - 1) {
+                            // There's a next video, let YouTube auto-advance
+                            updateStatus('下一首...');
+                        } else {
+                            // Last video in playlist, loop back to first
+                            updateStatus('播放清單結束，從頭開始...');
+                            const skipStart = parseInt(elements.skipStart.value) || 0;
+                            player.playVideoAt(0);
+                            if (skipStart > 0) {
+                                setTimeout(() => player.seekTo(skipStart, true), 500);
+                            }
+                        }
+                    } else {
+                        // Single video ended
+                        updateStatus('影片結束');
+                    }
+                } catch (e) {
+                    console.warn('Error handling video end:', e);
+                }
+            } else if (event.data === YT.PlayerState.BUFFERING) {
+                updateStatus('緩衝中...');
+            } else if (event.data === YT.PlayerState.UNSTARTED) {
+                // Video is unstarted, might need to trigger play
+                console.log('Video unstarted');
+            } else if (event.data === YT.PlayerState.CUED) {
+                // Video is cued but not playing, start it
+                console.log('Video cued, attempting to play...');
+                setTimeout(() => {
+                    if (player && player.playVideo && remainingSeconds > 0) {
+                        player.playVideo();
+                    }
+                }, 500);
             }
         }
 
@@ -497,9 +573,22 @@
             stopProgressChecker();
 
             progressCheckerId = setInterval(() => {
-                if (!player || !isPlaying) return;
+                if (!player) return;
 
                 try {
+                    const playerState = player.getPlayerState();
+
+                    // Check if player is actually playing (state 1)
+                    if (playerState !== YT.PlayerState.PLAYING) {
+                        // If timer is still running and player stopped unexpectedly, try to resume
+                        if (remainingSeconds > 0 && !timerPaused &&
+                            (playerState === YT.PlayerState.PAUSED || playerState === YT.PlayerState.UNSTARTED)) {
+                            console.log('Player stopped unexpectedly, attempting to resume...');
+                            player.playVideo();
+                        }
+                        return;
+                    }
+
                     const duration = player.getDuration();
                     const currentTime = player.getCurrentTime();
                     const skipEnd = parseInt(elements.skipEnd.value) || 0;
@@ -515,10 +604,12 @@
                                 // Has next video, skip to it
                                 updateStatus('跳過片尾，下一首...');
                                 player.nextVideo();
-                            } else {
-                                // No next video, just let it play to the end
-                                // Don't do anything, let the video finish naturally
+                            } else if (playlist && playlist.length > 0 && currentIndex === playlist.length - 1) {
+                                // Last video, loop back to first
+                                updateStatus('播放清單結束，從頭開始...');
+                                player.playVideoAt(0);
                             }
+                            // For single video, let it play to the end
                         }
                     }
                 } catch (e) {
@@ -531,6 +622,119 @@
             if (progressCheckerId) {
                 clearInterval(progressCheckerId);
                 progressCheckerId = null;
+            }
+        }
+
+        // Watchdog to ensure playback doesn't stop unexpectedly
+        let watchdogFailCount = 0;
+
+        function startPlaybackWatchdog() {
+            stopPlaybackWatchdog();
+            watchdogFailCount = 0;
+
+            playbackWatchdogId = setInterval(() => {
+                if (timerPaused || remainingSeconds <= 0) return;
+
+                // Check if player exists and has methods
+                if (!player || typeof player.getPlayerState !== 'function') {
+                    console.log('Watchdog: Player not available, waiting for re-init...');
+                    watchdogFailCount++;
+
+                    // After 3 failures, the page might need reload
+                    if (watchdogFailCount > 3) {
+                        console.log('Watchdog: Too many failures, session may be lost');
+                        updateStatus('播放器連線中斷，請重新開始');
+                    }
+                    return;
+                }
+
+                try {
+                    const playerState = player.getPlayerState();
+                    const currentTime = player.getCurrentTime();
+
+                    console.log('Watchdog check - State:', playerState, 'Time:', currentTime, 'Remaining:', remainingSeconds);
+
+                    // If player is not playing and timer is still active
+                    if (playerState !== YT.PlayerState.PLAYING &&
+                        playerState !== YT.PlayerState.BUFFERING) {
+
+                        watchdogFailCount++;
+
+                        // Check if video time hasn't changed (stuck)
+                        if (Math.abs(currentTime - lastPlayingTime) < 1 || watchdogFailCount > 2) {
+                            console.log('Watchdog: Playback appears stuck, attempting recovery... (fail count:', watchdogFailCount, ')');
+
+                            // Try different recovery methods based on state
+                            if (playerState === YT.PlayerState.ENDED) {
+                                // Video ended, try next video or restart playlist
+                                const playlist = player.getPlaylist();
+                                const currentIndex = player.getPlaylistIndex();
+
+                                if (playlist && playlist.length > 0) {
+                                    if (currentIndex < playlist.length - 1) {
+                                        player.nextVideo();
+                                    } else {
+                                        player.playVideoAt(0);
+                                    }
+                                } else {
+                                    // Single video, restart it
+                                    const skipStart = parseInt(elements.skipStart.value) || 0;
+                                    player.seekTo(skipStart, true);
+                                    player.playVideo();
+                                }
+                            } else if (playerState === YT.PlayerState.PAUSED ||
+                                       playerState === YT.PlayerState.UNSTARTED ||
+                                       playerState === YT.PlayerState.CUED ||
+                                       playerState === -1) {
+                                // Try to play
+                                player.playVideo();
+
+                                // If still failing after multiple attempts, try reloading the video
+                                if (watchdogFailCount > 4 && lastParsedUrl) {
+                                    console.log('Watchdog: Multiple failures, reloading video...');
+                                    updateStatus('重新載入中...');
+
+                                    // Update lastStartIndex to current position if available
+                                    try {
+                                        const currentIndex = player.getPlaylistIndex();
+                                        if (currentIndex >= 0) {
+                                            lastStartIndex = currentIndex;
+                                        }
+                                    } catch (e) {}
+
+                                    if (lastParsedUrl.type === 'playlist') {
+                                        player.loadPlaylist({
+                                            list: lastParsedUrl.playlistId,
+                                            listType: 'playlist',
+                                            index: lastStartIndex,
+                                            startSeconds: lastSkipStart
+                                        });
+                                    } else if (lastParsedUrl.videoId) {
+                                        player.loadVideoById({
+                                            videoId: lastParsedUrl.videoId,
+                                            startSeconds: lastSkipStart
+                                        });
+                                    }
+                                    watchdogFailCount = 0;
+                                }
+                            }
+                        }
+                    } else {
+                        // Player is working, reset fail count
+                        watchdogFailCount = 0;
+                        lastPlayingTime = currentTime;
+                    }
+                } catch (e) {
+                    console.warn('Watchdog error:', e);
+                    watchdogFailCount++;
+                }
+            }, 3000); // Check every 3 seconds (more frequent)
+        }
+
+        function stopPlaybackWatchdog() {
+            if (playbackWatchdogId) {
+                clearInterval(playbackWatchdogId);
+                playbackWatchdogId = null;
             }
         }
 
@@ -594,18 +798,17 @@
                 player.stopVideo();
             }
 
-            if (sleepTimerId) {
-                clearTimeout(sleepTimerId);
-                sleepTimerId = null;
-            }
             if (countdownInterval) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
             }
 
             stopProgressChecker();
+            stopPlaybackWatchdog();
             isPlaying = false;
             timerPaused = false;
+            sessionActive = false;
+            lastParsedUrl = null;
 
             // Disable NoSleep
             disableNoSleep();
@@ -655,6 +858,12 @@
             // Enable NoSleep to keep screen on
             enableNoSleep();
 
+            // Save session state for recovery
+            sessionActive = true;
+            lastParsedUrl = parsed;
+            lastStartIndex = startIndex;
+            lastSkipStart = skipStart;
+
             if (parsed.type === 'playlist') {
                 // Load as playlist with selected index
                 player.loadPlaylist({
@@ -674,6 +883,7 @@
             }
 
             startSleepTimer();
+            startPlaybackWatchdog();
 
             elements.startBtn.textContent = '⏹️ 停止播放';
             elements.startBtn.classList.remove('bg-accent');
@@ -685,7 +895,8 @@
         // ============================
 
         elements.startBtn.addEventListener('click', () => {
-            if (isPlaying || sleepTimerId) {
+            // Check if currently playing OR if countdown timer is active
+            if (isPlaying || countdownInterval) {
                 stopEverything();
             } else {
                 startPlayback();
@@ -741,6 +952,127 @@
                 e.returnValue = '';
             }
         });
+
+        // ============================
+        // iOS/Safari Specific Handling
+        // ============================
+
+        // Handle page visibility change (iOS Safari may pause when switching apps)
+        document.addEventListener('visibilitychange', () => {
+            console.log('Visibility changed:', document.visibilityState, 'sessionActive:', sessionActive);
+
+            if (document.visibilityState === 'visible' && sessionActive && remainingSeconds > 0) {
+                // Page became visible again, check if player needs recovery
+                setTimeout(() => {
+                    if (!player) {
+                        console.log('Player lost, will recover on re-init');
+                        return;
+                    }
+
+                    try {
+                        const playerState = player.getPlayerState();
+                        console.log('Player state on visibility:', playerState);
+
+                        // If not playing, try to resume
+                        if (playerState !== YT.PlayerState.PLAYING &&
+                            playerState !== YT.PlayerState.BUFFERING &&
+                            !timerPaused) {
+                            console.log('Resuming playback after visibility change...');
+                            player.playVideo();
+                        }
+                    } catch (e) {
+                        console.warn('Error checking player state:', e);
+                        // Player might be broken, try recovery
+                        if (lastParsedUrl) {
+                            updateStatus('重新載入播放器...');
+                            if (lastParsedUrl.type === 'playlist') {
+                                player.loadPlaylist({
+                                    list: lastParsedUrl.playlistId,
+                                    listType: 'playlist',
+                                    index: lastStartIndex,
+                                    startSeconds: lastSkipStart
+                                });
+                            } else if (lastParsedUrl.videoId) {
+                                player.loadVideoById({
+                                    videoId: lastParsedUrl.videoId,
+                                    startSeconds: lastSkipStart
+                                });
+                            }
+                        }
+                    }
+                }, 500);
+            }
+        });
+
+        // Handle page freeze/resume (iOS Safari specific)
+        document.addEventListener('freeze', () => {
+            console.log('Page frozen by browser');
+        });
+
+        document.addEventListener('resume', () => {
+            console.log('Page resumed, sessionActive:', sessionActive);
+            if (sessionActive && remainingSeconds > 0 && !timerPaused) {
+                setTimeout(() => {
+                    if (player && player.playVideo) {
+                        console.log('Attempting to resume after page resume...');
+                        player.playVideo();
+                    }
+                }, 1000);
+            }
+        });
+
+        // Periodic audio context keep-alive for iOS
+        let audioKeepAliveInterval = null;
+
+        function startAudioKeepAlive() {
+            if (audioKeepAliveInterval) return;
+
+            // Create a silent audio context to keep audio alive
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const audioCtx = new AudioContext();
+
+                    audioKeepAliveInterval = setInterval(() => {
+                        if (sessionActive && remainingSeconds > 0) {
+                            // Create a very short silent sound
+                            const oscillator = audioCtx.createOscillator();
+                            const gainNode = audioCtx.createGain();
+                            gainNode.gain.value = 0.001; // Nearly silent
+                            oscillator.connect(gainNode);
+                            gainNode.connect(audioCtx.destination);
+                            oscillator.start();
+                            oscillator.stop(audioCtx.currentTime + 0.001);
+                        }
+                    }, 25000); // Every 25 seconds
+
+                    console.log('Audio keep-alive started');
+                }
+            } catch (e) {
+                console.warn('Could not start audio keep-alive:', e);
+            }
+        }
+
+        function stopAudioKeepAlive() {
+            if (audioKeepAliveInterval) {
+                clearInterval(audioKeepAliveInterval);
+                audioKeepAliveInterval = null;
+                console.log('Audio keep-alive stopped');
+            }
+        }
+
+        // Start audio keep-alive when playback starts
+        const originalStartPlayback = startPlayback;
+        startPlayback = function() {
+            originalStartPlayback();
+            startAudioKeepAlive();
+        };
+
+        const originalStopEverything = stopEverything;
+        stopEverything = function() {
+            stopAudioKeepAlive();
+            originalStopEverything();
+        };
     </script>
 </body>
 </html>
