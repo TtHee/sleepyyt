@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SleepyYT">
@@ -40,9 +42,11 @@
         ::-webkit-scrollbar {
             width: 4px;
         }
+
         ::-webkit-scrollbar-track {
             background: #0f172a;
         }
+
         ::-webkit-scrollbar-thumb {
             background: #fb923c;
             border-radius: 2px;
@@ -56,6 +60,7 @@
             overflow: hidden;
             border-radius: 8px;
         }
+
         .player-wrapper iframe {
             position: absolute;
             top: 0;
@@ -71,6 +76,7 @@
             -webkit-appearance: none;
             -moz-appearance: textfield;
         }
+
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -84,6 +90,7 @@
         }
     </style>
 </head>
+
 <body class="bg-dark min-h-screen text-white font-sans">
     <div class="max-w-lg mx-auto px-4 py-4">
 
@@ -105,16 +112,12 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <button
-                        id="pauseTimerBtn"
-                        class="flex-1 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm touch-btn"
-                    >
+                    <button id="pauseTimerBtn"
+                        class="flex-1 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm touch-btn">
                         ⏸️ 暫停
                     </button>
-                    <button
-                        id="stopTimerBtn"
-                        class="flex-1 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm touch-btn"
-                    >
+                    <button id="stopTimerBtn"
+                        class="flex-1 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm touch-btn">
                         ⏹️ 停止
                     </button>
                 </div>
@@ -140,11 +143,14 @@
             <div class="flex justify-between items-center mb-2">
                 <span class="text-red-400 text-xs font-bold">🔍 除錯日誌</span>
                 <div class="flex gap-2">
-                    <button id="copyDebugBtn" class="text-xs text-green-400 px-2 py-1 bg-green-500/20 rounded">📋 複製</button>
+                    <button id="copyDebugBtn" class="text-xs text-green-400 px-2 py-1 bg-green-500/20 rounded">📋
+                        複製</button>
                     <button id="clearDebugBtn" class="text-xs text-red-400 px-2 py-1 bg-red-500/20 rounded">清除</button>
                 </div>
             </div>
-            <div id="debugLog" class="text-xs text-yellow-300 font-mono h-24 overflow-y-auto whitespace-pre-wrap break-all bg-black/30 p-2 rounded"></div>
+            <div id="debugLog"
+                class="text-xs text-yellow-300 font-mono h-24 overflow-y-auto whitespace-pre-wrap break-all bg-black/30 p-2 rounded">
+            </div>
         </div>
 
         <!-- Settings Panel -->
@@ -156,17 +162,10 @@
                     YouTube 網址
                 </label>
                 <div class="flex gap-2">
-                    <input
-                        type="text"
-                        id="youtubeUrl"
-                        placeholder="貼上影片或播放清單網址"
+                    <input type="text" id="youtubeUrl" placeholder="貼上影片或播放清單網址"
                         value="https://youtube.com/playlist?list=PLTHJiIfg_SmSh939efM9kNbmyJS6z21e3&si=Igdw9lnb68DJRmtd"
-                        class="flex-1 bg-dark border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition-colors text-sm"
-                    >
-                    <button
-                        id="clearUrlBtn"
-                        class="px-3 bg-slate-700 text-slate-400 rounded-xl text-sm touch-btn"
-                    >
+                        class="flex-1 bg-dark border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition-colors text-sm">
+                    <button id="clearUrlBtn" class="px-3 bg-slate-700 text-slate-400 rounded-xl text-sm touch-btn">
                         清除
                     </button>
                 </div>
@@ -178,27 +177,15 @@
                     <label class="block text-slate-400 text-xs mb-1">
                         跳過片頭 (秒)
                     </label>
-                    <input
-                        type="number"
-                        id="skipStart"
-                        value="90"
-                        min="0"
-                        max="600"
-                        class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
-                    >
+                    <input type="number" id="skipStart" value="90" min="0" max="600"
+                        class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors">
                 </div>
                 <div>
                     <label class="block text-slate-400 text-xs mb-1">
                         跳過片尾 (秒)
                     </label>
-                    <input
-                        type="number"
-                        id="skipEnd"
-                        value="50"
-                        min="0"
-                        max="600"
-                        class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
-                    >
+                    <input type="number" id="skipEnd" value="50" min="0" max="600"
+                        class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors">
                 </div>
             </div>
 
@@ -207,14 +194,8 @@
                 <label class="block text-slate-400 text-xs mb-1">
                     從第幾集開始
                 </label>
-                <input
-                    type="number"
-                    id="startIndex"
-                    value="1"
-                    min="1"
-                    max="999"
-                    class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors"
-                >
+                <input type="number" id="startIndex" value="1" min="1" max="999"
+                    class="w-full bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center focus:outline-none focus:border-accent transition-colors">
             </div>
 
             <!-- Sleep Timer -->
@@ -223,39 +204,35 @@
                     睡眠定時 (分鐘)
                 </label>
                 <div class="flex items-center gap-2">
-                    <button
-                        class="time-btn w-10 h-10 bg-dark border border-slate-700 rounded-lg text-lg touch-btn"
-                        data-adjust="-10"
-                    >−</button>
-                    <input
-                        type="number"
-                        id="totalMins"
-                        value="40"
-                        min="5"
-                        max="180"
-                        class="flex-1 bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center text-lg font-semibold focus:outline-none focus:border-accent transition-colors"
-                    >
-                    <button
-                        class="time-btn w-10 h-10 bg-dark border border-slate-700 rounded-lg text-lg touch-btn"
-                        data-adjust="10"
-                    >+</button>
+                    <button class="time-btn w-10 h-10 bg-dark border border-slate-700 rounded-lg text-lg touch-btn"
+                        data-adjust="-10">−</button>
+                    <input type="number" id="totalMins" value="40" min="5" max="180"
+                        class="flex-1 bg-dark border border-slate-700 rounded-lg px-3 py-2 text-white text-center text-lg font-semibold focus:outline-none focus:border-accent transition-colors">
+                    <button class="time-btn w-10 h-10 bg-dark border border-slate-700 rounded-lg text-lg touch-btn"
+                        data-adjust="10">+</button>
                 </div>
             </div>
 
             <!-- Quick Time Buttons -->
             <div class="flex gap-2">
-                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="20">20分</button>
-                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="40">40分</button>
-                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="60">60分</button>
-                <button class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn" data-mins="90">90分</button>
+                <button
+                    class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn"
+                    data-mins="20">20分</button>
+                <button
+                    class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn"
+                    data-mins="40">40分</button>
+                <button
+                    class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn"
+                    data-mins="60">60分</button>
+                <button
+                    class="quick-time flex-1 py-2 bg-dark border border-slate-700 rounded-lg text-sm text-slate-400 touch-btn"
+                    data-mins="90">90分</button>
             </div>
         </div>
 
         <!-- Action Button -->
-        <button
-            id="startBtn"
-            class="w-full py-4 bg-accent text-dark font-bold text-lg rounded-xl touch-btn shadow-lg shadow-accent/20"
-        >
+        <button id="startBtn"
+            class="w-full py-4 bg-accent text-dark font-bold text-lg rounded-xl touch-btn shadow-lg shadow-accent/20">
             🎵 開始播放
         </button>
 
@@ -315,7 +292,7 @@
                 if (logEl && logs.length > 0) {
                     logEl.textContent = logs.join('\n');
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
 
         // Detect page reload - will be logged after DOM is ready
@@ -330,6 +307,12 @@
         // 緩衝失敗計數器
         let bufferFailCount = 0;
         let lastBufferTime = 0;
+
+        // 緩衝超時恢復機制
+        let bufferStartTime = 0;
+        let bufferRecoveryTimer = null;
+        const BUFFER_TIMEOUT_SOFT = 15000; // 15 秒後嘗試 playVideo
+        const BUFFER_TIMEOUT_HARD = 30000; // 30 秒後重新載入
 
         // 使用者主動暫停標記（防止自動恢復）
         let userPaused = false;
@@ -346,7 +329,7 @@
                     savedAt: Date.now()
                 };
                 localStorage.setItem('sleepyyt_session', JSON.stringify(session));
-            } catch (e) {}
+            } catch (e) { }
         }
 
         // Restore session from localStorage
@@ -366,7 +349,7 @@
                         return true;
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
             return false;
         }
 
@@ -374,7 +357,7 @@
         function clearSession() {
             try {
                 localStorage.removeItem('sleepyyt_session');
-            } catch (e) {}
+            } catch (e) { }
         }
 
         // Initialize NoSleep
@@ -547,7 +530,11 @@
                     'fs': 0,
                     'controls': 1,
                     'enablejsapi': 1,
-                    'autoplay': 1  // iOS 需要 autoplay 配合 mute 才能自動播放
+                    'autoplay': 1,
+                    'vq': 'small',        // 強制低品質 (240p) 減少緩衝
+                    'iv_load_policy': 3,  // 隱藏影片註解
+                    'disablekb': 1,       // 禁用鍵盤控制，減少干擾
+                    'origin': window.location.origin  // 設定 origin 提升穩定性
                 },
                 events: {
                     'onReady': onPlayerReady,
@@ -559,6 +546,16 @@
 
         function onPlayerReady(event) {
             debugLog('🎬 播放器就緒 session=' + sessionActive + ' 剩餘=' + remainingSeconds + ' recovery=' + playerRecoveryInProgress);
+
+            // 強制設定低品質，減少緩衝需求
+            try {
+                if (player && player.setPlaybackQuality) {
+                    player.setPlaybackQuality('small'); // 240p
+                    debugLog('📺 已設定播放品質為 small (240p)');
+                }
+            } catch (e) {
+                debugLog('⚠️ 無法設定播放品質: ' + e.message);
+            }
 
             // 如果正在恢復中，跳過重複處理
             if (playerRecoveryInProgress) {
@@ -669,12 +666,20 @@
 
         function onPlayerStateChange(event) {
             // YT.PlayerState: UNSTARTED=-1, ENDED=0, PLAYING=1, PAUSED=2, BUFFERING=3, CUED=5
-            const stateNames = {'-1':'未開始', '0':'結束', '1':'播放中', '2':'暫停', '3':'緩衝', '5':'已載入'};
+            const stateNames = { '-1': '未開始', '0': '結束', '1': '播放中', '2': '暫停', '3': '緩衝', '5': '已載入' };
             debugLog('📺 狀態變更: ' + (stateNames[event.data] || event.data));
 
             if (event.data === YT.PlayerState.PLAYING) {
                 isPlaying = true;
                 bufferFailCount = 0; // 重置緩衝失敗計數
+                bufferStartTime = 0; // 重置緩衝開始時間
+
+                // 清除緩衝恢復計時器
+                if (bufferRecoveryTimer) {
+                    clearTimeout(bufferRecoveryTimer);
+                    bufferRecoveryTimer = null;
+                }
+
                 handleVideoStart();
                 startProgressChecker();
 
@@ -717,12 +722,94 @@
                 }
             } else if (event.data === YT.PlayerState.BUFFERING) {
                 const now = Date.now();
-                // 如果距離上次緩衝不到 30 秒，計數
+
+                // 啟動緩衝超時恢復機制
+                if (!bufferStartTime) {
+                    bufferStartTime = now;
+                    debugLog('⏳ 開始緩衝...');
+                }
+
+                // 清除舊的緩衝恢復計時器
+                if (bufferRecoveryTimer) {
+                    clearTimeout(bufferRecoveryTimer);
+                }
+
+                // 設置緩衝超時恢復
+                bufferRecoveryTimer = setTimeout(() => {
+                    if (!player || userPaused || timerPaused) return;
+
+                    try {
+                        const currentState = player.getPlayerState();
+                        const bufferDuration = Date.now() - bufferStartTime;
+
+                        // 如果仍在緩衝中
+                        if (currentState === YT.PlayerState.BUFFERING ||
+                            currentState === YT.PlayerState.UNSTARTED ||
+                            currentState === -1) {
+
+                            if (bufferDuration >= BUFFER_TIMEOUT_HARD) {
+                                // 緩衝超過 30 秒，重新載入影片
+                                debugLog('⚠️ 緩衝超時 (' + Math.floor(bufferDuration / 1000) + '秒)，重新載入...');
+                                bufferStartTime = 0;
+
+                                if (player.mute) player.mute();
+
+                                if (lastParsedUrl && lastParsedUrl.type === 'playlist') {
+                                    // 嘗試下一首
+                                    const currentIndex = player.getPlaylistIndex();
+                                    const playlist = player.getPlaylist();
+                                    if (playlist && currentIndex < playlist.length - 1) {
+                                        debugLog('➡️ 跳到下一首影片...');
+                                        player.nextVideo();
+                                    } else {
+                                        player.loadPlaylist({
+                                            list: lastParsedUrl.playlistId,
+                                            listType: 'playlist',
+                                            index: lastStartIndex,
+                                            startSeconds: lastSkipStart
+                                        });
+                                    }
+                                } else if (lastParsedUrl && lastParsedUrl.videoId) {
+                                    player.loadVideoById({
+                                        videoId: lastParsedUrl.videoId,
+                                        startSeconds: lastSkipStart
+                                    });
+                                }
+                            } else if (bufferDuration >= BUFFER_TIMEOUT_SOFT) {
+                                // 緩衝超過 15 秒，嘗試 playVideo
+                                debugLog('⏳ 緩衝超時 (' + Math.floor(bufferDuration / 1000) + '秒)，嘗試恢復...');
+                                player.playVideo();
+
+                                // 再次檢查
+                                bufferRecoveryTimer = setTimeout(() => {
+                                    if (!player) return;
+                                    const state = player.getPlayerState();
+                                    if (state !== YT.PlayerState.PLAYING) {
+                                        // 仍未播放，重新載入
+                                        debugLog('⚠️ playVideo 無效，重新載入...');
+                                        bufferStartTime = 0;
+                                        if (lastParsedUrl && lastParsedUrl.type === 'playlist') {
+                                            player.nextVideo();
+                                        } else if (lastParsedUrl && lastParsedUrl.videoId) {
+                                            player.loadVideoById({
+                                                videoId: lastParsedUrl.videoId,
+                                                startSeconds: player.getCurrentTime() || lastSkipStart
+                                            });
+                                        }
+                                    }
+                                }, 10000); // 再等 10 秒
+                            }
+                        }
+                    } catch (e) {
+                        debugLog('❌ 緩衝恢復錯誤: ' + e.message);
+                    }
+                }, BUFFER_TIMEOUT_SOFT); // 15 秒後第一次檢查
+
+                // 既有的連續緩衝計數邏輯
                 if (now - lastBufferTime < 30000) {
                     bufferFailCount++;
                     debugLog('⏳ 緩衝中... (連續第 ' + bufferFailCount + ' 次)');
 
-                    // 如果連續緩衝超過 8 次（約 2 分鐘），嘗試跳到下一個影片
                     if (bufferFailCount >= 8 && lastParsedUrl && lastParsedUrl.type === 'playlist') {
                         debugLog('⚠️ 緩衝多次失敗，嘗試下一首...');
                         bufferFailCount = 0;
@@ -734,7 +821,6 @@
                     }
                 } else {
                     bufferFailCount = 1;
-                    debugLog('⏳ 緩衝中...');
                 }
                 lastBufferTime = now;
                 updateStatus('緩衝中... 請稍候');
@@ -916,16 +1002,20 @@
                                 }
                                 lastWatchdogRecovery = now;
                             } else if (playerState === YT.PlayerState.PAUSED ||
-                                       playerState === YT.PlayerState.UNSTARTED ||
-                                       playerState === YT.PlayerState.CUED ||
-                                       playerState === -1) {
+                                playerState === YT.PlayerState.UNSTARTED ||
+                                playerState === YT.PlayerState.CUED ||
+                                playerState === -1) {
 
                                 // 如果是 UNSTARTED (-1) 狀態且失敗超過 6 次，直接重新載入
                                 // 因為這種狀態下 playVideo() 通常無效
+                                // 但要確保不會太頻繁重新載入
+                                const now2 = Date.now();
                                 if ((playerState === -1 || playerState === YT.PlayerState.UNSTARTED) &&
-                                    watchdogFailCount > 6 && lastParsedUrl) {
+                                    watchdogFailCount > 6 && lastParsedUrl &&
+                                    (now2 - lastReloadTime >= RELOAD_COOLDOWN)) {
                                     debugLog('🐕 Watchdog: UNSTARTED 狀態，強制重新載入...');
                                     updateStatus('重新載入播放清單...');
+                                    lastReloadTime = now2;
 
                                     // iOS 需要先靜音才能自動播放
                                     if (player.mute) {
@@ -960,6 +1050,11 @@
                                     watchdogFailCount = 0;
                                     lastWatchdogRecovery = now;
                                     return;
+                                } else if ((playerState === -1 || playerState === YT.PlayerState.UNSTARTED) &&
+                                    watchdogFailCount > 6 && lastParsedUrl &&
+                                    (now2 - lastReloadTime < RELOAD_COOLDOWN)) {
+                                    // 冷卻中，只記錄不重新載入
+                                    debugLog('🐕 Watchdog: 冷卻中，跳過重新載入 (剩餘 ' + Math.ceil((RELOAD_COOLDOWN - (now2 - lastReloadTime)) / 1000) + '秒)');
                                 }
 
                                 // Try to play
@@ -967,9 +1062,13 @@
                                 lastWatchdogRecovery = now;
 
                                 // If still failing after many attempts, try reloading the video
-                                if (watchdogFailCount > 12 && lastParsedUrl) {
+                                // 但要遵守全域冷卻時間
+                                const now3 = Date.now();
+                                if (watchdogFailCount > 12 && lastParsedUrl &&
+                                    (now3 - lastReloadTime >= RELOAD_COOLDOWN)) {
                                     debugLog('🐕 Watchdog: 多次失敗，重新載入...');
                                     updateStatus('重新載入中...');
+                                    lastReloadTime = now3;
 
                                     // Update lastStartIndex to current position if available
                                     try {
@@ -977,7 +1076,7 @@
                                         if (currentIndex >= 0) {
                                             lastStartIndex = currentIndex;
                                         }
-                                    } catch (e) {}
+                                    } catch (e) { }
 
                                     if (lastParsedUrl.type === 'playlist') {
                                         player.loadPlaylist({
@@ -994,6 +1093,9 @@
                                     }
                                     watchdogFailCount = 0;
                                     lastWatchdogRecovery = now;
+                                } else if (watchdogFailCount > 12 && lastParsedUrl &&
+                                    (now3 - lastReloadTime < RELOAD_COOLDOWN)) {
+                                    debugLog('🐕 Watchdog: 冷卻中，跳過重新載入');
                                 }
                             }
                         }
@@ -1122,7 +1224,14 @@
             lastParsedUrl = null;
             playerRecoveryInProgress = false;
             bufferFailCount = 0;
+            bufferStartTime = 0;
             watchdogFailCount = 0;
+
+            // 清除緩衝恢復計時器
+            if (bufferRecoveryTimer) {
+                clearTimeout(bufferRecoveryTimer);
+                bufferRecoveryTimer = null;
+            }
 
             // 清除 localStorage 中的 session
             clearSession();
@@ -1339,50 +1448,45 @@
         // iOS/Safari Specific Handling
         // ============================
 
+        // 全域重新載入冷卻時間（避免頻繁重新載入導致閃爍）
+        let lastReloadTime = 0;
+        const RELOAD_COOLDOWN = 60000; // 至少 60 秒才能再次重新載入
+
         // Handle page visibility change (iOS Safari may pause when switching apps)
         document.addEventListener('visibilitychange', () => {
-            console.log('Visibility changed:', document.visibilityState, 'sessionActive:', sessionActive);
+            debugLog('👁️ 可見性變更: ' + document.visibilityState + ' session=' + sessionActive);
 
             if (document.visibilityState === 'visible' && sessionActive && remainingSeconds > 0) {
                 // Page became visible again, check if player needs recovery
                 setTimeout(() => {
+                    // 如果使用者暫停或正在恢復中，不做任何事
+                    if (userPaused || timerPaused || playerRecoveryInProgress) {
+                        debugLog('👁️ 跳過恢復: userPaused=' + userPaused + ' timerPaused=' + timerPaused);
+                        return;
+                    }
+
                     if (!player) {
-                        console.log('Player lost, will recover on re-init');
+                        debugLog('👁️ 播放器不存在，等待重新初始化');
                         return;
                     }
 
                     try {
                         const playerState = player.getPlayerState();
-                        console.log('Player state on visibility:', playerState);
+                        debugLog('👁️ 播放器狀態: ' + playerState);
 
-                        // If not playing, try to resume
+                        // If not playing and not buffering, try to resume with playVideo()
                         if (playerState !== YT.PlayerState.PLAYING &&
-                            playerState !== YT.PlayerState.BUFFERING &&
-                            !timerPaused) {
-                            console.log('Resuming playback after visibility change...');
+                            playerState !== YT.PlayerState.BUFFERING) {
+                            debugLog('👁️ 嘗試恢復播放 (playVideo)');
                             player.playVideo();
                         }
+                        // 不再在這裡重新載入播放器！讓 watchdog 處理嚴重問題
                     } catch (e) {
-                        console.warn('Error checking player state:', e);
-                        // Player might be broken, try recovery
-                        if (lastParsedUrl) {
-                            updateStatus('重新載入播放器...');
-                            if (lastParsedUrl.type === 'playlist') {
-                                player.loadPlaylist({
-                                    list: lastParsedUrl.playlistId,
-                                    listType: 'playlist',
-                                    index: lastStartIndex,
-                                    startSeconds: lastSkipStart
-                                });
-                            } else if (lastParsedUrl.videoId) {
-                                player.loadVideoById({
-                                    videoId: lastParsedUrl.videoId,
-                                    startSeconds: lastSkipStart
-                                });
-                            }
-                        }
+                        debugLog('👁️ 播放器狀態檢查失敗: ' + e.message);
+                        // 不要立即重新載入，讓 watchdog 在適當時機處理
+                        // 這樣可以避免在播放中突然閃爍重新載入
                     }
-                }, 500);
+                }, 1000); // 延長到 1 秒，給播放器更多時間穩定
             }
         });
 
@@ -1445,16 +1549,17 @@
 
         // Start audio keep-alive when playback starts
         const originalStartPlayback = startPlayback;
-        startPlayback = function() {
+        startPlayback = function () {
             originalStartPlayback();
             startAudioKeepAlive();
         };
 
         const originalStopEverything = stopEverything;
-        stopEverything = function(reason) {
+        stopEverything = function (reason) {
             stopAudioKeepAlive();
             originalStopEverything(reason || 'wrapper_call');
         };
     </script>
 </body>
+
 </html>
