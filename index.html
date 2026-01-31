@@ -138,8 +138,11 @@
         <!-- Debug Log (moved to top for visibility) -->
         <div id="debugPanel" class="mb-4 bg-red-900/30 rounded-xl p-3 border border-red-800">
             <div class="flex justify-between items-center mb-2">
-                <span class="text-red-400 text-xs font-bold">🔍 除錯日誌 (測試中)</span>
-                <button id="clearDebugBtn" class="text-xs text-red-400 px-2 py-1 bg-red-500/20 rounded">清除</button>
+                <span class="text-red-400 text-xs font-bold">🔍 除錯日誌</span>
+                <div class="flex gap-2">
+                    <button id="copyDebugBtn" class="text-xs text-green-400 px-2 py-1 bg-green-500/20 rounded">📋 複製</button>
+                    <button id="clearDebugBtn" class="text-xs text-red-400 px-2 py-1 bg-red-500/20 rounded">清除</button>
+                </div>
             </div>
             <div id="debugLog" class="text-xs text-yellow-300 font-mono h-24 overflow-y-auto whitespace-pre-wrap break-all bg-black/30 p-2 rounded"></div>
         </div>
@@ -323,6 +326,10 @@
         let lastParsedUrl = null;
         let lastStartIndex = 0;
         let lastSkipStart = 0;
+
+        // 緩衝失敗計數器
+        let bufferFailCount = 0;
+        let lastBufferTime = 0;
 
         // Save session to localStorage for recovery
         function saveSession() {
@@ -615,6 +622,7 @@
 
             if (event.data === YT.PlayerState.PLAYING) {
                 isPlaying = true;
+                bufferFailCount = 0; // 重置緩衝失敗計數
                 handleVideoStart();
                 startProgressChecker();
 
@@ -656,6 +664,26 @@
                     console.warn('Error handling video end:', e);
                 }
             } else if (event.data === YT.PlayerState.BUFFERING) {
+                const now = Date.now();
+                // 如果距離上次緩衝不到 20 秒，計數
+                if (now - lastBufferTime < 20000) {
+                    bufferFailCount++;
+                    debugLog('⏳ 緩衝中... (連續第 ' + bufferFailCount + ' 次)');
+
+                    // 如果連續緩衝超過 5 次，嘗試跳到下一個影片
+                    if (bufferFailCount >= 5 && lastParsedUrl && lastParsedUrl.type === 'playlist') {
+                        debugLog('⚠️ 緩衝多次失敗，嘗試下一首...');
+                        bufferFailCount = 0;
+                        setTimeout(() => {
+                            if (player && player.nextVideo) {
+                                player.nextVideo();
+                            }
+                        }, 1000);
+                    }
+                } else {
+                    bufferFailCount = 1;
+                }
+                lastBufferTime = now;
                 updateStatus('緩衝中... 請稍候');
             } else if (event.data === YT.PlayerState.UNSTARTED) {
                 // Video is unstarted, might need to trigger play
@@ -1104,6 +1132,26 @@
         document.getElementById('clearDebugBtn').addEventListener('click', () => {
             document.getElementById('debugLog').textContent = '';
             localStorage.removeItem('sleepyyt_debug');
+        });
+
+        document.getElementById('copyDebugBtn').addEventListener('click', () => {
+            const logText = document.getElementById('debugLog').textContent;
+            navigator.clipboard.writeText(logText).then(() => {
+                const btn = document.getElementById('copyDebugBtn');
+                btn.textContent = '✅ 已複製';
+                setTimeout(() => { btn.textContent = '📋 複製'; }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = logText;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                const btn = document.getElementById('copyDebugBtn');
+                btn.textContent = '✅ 已複製';
+                setTimeout(() => { btn.textContent = '📋 複製'; }, 2000);
+            });
         });
 
         document.querySelectorAll('.time-btn').forEach(btn => {
