@@ -254,6 +254,15 @@
             </p>
         </footer>
 
+        <!-- Debug Log (for mobile debugging) -->
+        <div id="debugPanel" class="mt-4 bg-darker rounded-xl p-3 border border-slate-800">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-slate-400 text-xs">除錯日誌</span>
+                <button id="clearDebugBtn" class="text-xs text-red-400 px-2 py-1 bg-red-500/20 rounded">清除</button>
+            </div>
+            <div id="debugLog" class="text-xs text-green-400 font-mono h-32 overflow-y-auto whitespace-pre-wrap break-all"></div>
+        </div>
+
     </div>
 
     <!-- YouTube IFrame API -->
@@ -271,6 +280,21 @@
         let isPlaying = false;
         let noSleep = null;
         let lastPlayingTime = 0;
+
+        // Debug logging for mobile
+        function debugLog(msg) {
+            const logEl = document.getElementById('debugLog');
+            if (logEl) {
+                const time = new Date().toLocaleTimeString('zh-TW');
+                logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
+                // Keep only last 50 lines
+                const lines = logEl.textContent.split('\n');
+                if (lines.length > 50) {
+                    logEl.textContent = lines.slice(0, 50).join('\n');
+                }
+            }
+            console.log(msg);
+        }
 
         // Session state for recovery
         let sessionActive = false;
@@ -438,11 +462,15 @@
         }
 
         function onPlayerReady(event) {
-            console.log('Player ready, sessionActive:', sessionActive);
+            debugLog('🎬 播放器就緒 session=' + sessionActive + ' 剩餘=' + remainingSeconds);
+
+            // Check if we have an active countdown (more reliable than sessionActive)
+            const hasActiveTimer = countdownInterval !== null && remainingSeconds > 0;
 
             // If we had an active session, try to recover it
-            if (sessionActive && remainingSeconds > 0 && lastParsedUrl) {
+            if ((sessionActive || hasActiveTimer) && remainingSeconds > 0 && lastParsedUrl) {
                 console.log('Attempting to recover playback session...');
+                sessionActive = true; // Ensure sessionActive is set
                 updateStatus('恢復播放中...');
 
                 // Re-start playback
@@ -466,14 +494,15 @@
                         updateStatus('恢復失敗');
                     }
                 }, 500);
-            } else {
+            } else if (!hasActiveTimer) {
                 updateStatus('播放器已就緒');
             }
         }
 
         function onPlayerStateChange(event) {
             // YT.PlayerState: UNSTARTED=-1, ENDED=0, PLAYING=1, PAUSED=2, BUFFERING=3, CUED=5
-            console.log('Player state changed:', event.data);
+            const stateNames = {'-1':'未開始', '0':'結束', '1':'播放中', '2':'暫停', '3':'緩衝', '5':'已載入'};
+            debugLog('📺 狀態變更: ' + (stateNames[event.data] || event.data));
 
             if (event.data === YT.PlayerState.PLAYING) {
                 isPlaying = true;
@@ -637,13 +666,12 @@
 
                 // Check if player exists and has methods
                 if (!player || typeof player.getPlayerState !== 'function') {
-                    console.log('Watchdog: Player not available, waiting for re-init...');
                     watchdogFailCount++;
+                    debugLog('🐕 Watchdog: 播放器不可用 #' + watchdogFailCount);
 
-                    // After 3 failures, the page might need reload
-                    if (watchdogFailCount > 3) {
-                        console.log('Watchdog: Too many failures, session may be lost');
-                        updateStatus('播放器連線中斷，請重新開始');
+                    // Don't give up - just wait for player to reinitialize
+                    if (watchdogFailCount > 3 && watchdogFailCount <= 10) {
+                        updateStatus('等待播放器重新連線...');
                     }
                     return;
                 }
@@ -742,10 +770,14 @@
         // Sleep Timer Functions
         // ============================
 
+        // Track last timer tick for health check
+        let lastTimerTick = 0;
+
         function startSleepTimer() {
             const totalMins = parseInt(elements.totalMins.value) || 40;
             remainingSeconds = totalMins * 60;
             timerPaused = false;
+            lastTimerTick = Date.now();
 
             elements.timerDisplay.classList.remove('hidden');
             elements.pauseTimerBtn.textContent = '⏸️ 暫停';
@@ -753,11 +785,23 @@
 
             countdownInterval = setInterval(() => {
                 if (!timerPaused) {
-                    remainingSeconds--;
+                    // Check for timer drift (Safari may throttle background timers)
+                    const now = Date.now();
+                    const elapsed = Math.floor((now - lastTimerTick) / 1000);
+
+                    if (elapsed > 2) {
+                        // Timer was throttled, adjust remaining time
+                        debugLog('⚠️ 計時器漂移: ' + elapsed + '秒');
+                        remainingSeconds -= elapsed;
+                    } else {
+                        remainingSeconds--;
+                    }
+
+                    lastTimerTick = now;
                     updateCountdownDisplay();
 
                     if (remainingSeconds <= 0) {
-                        stopEverything();
+                        stopEverything('timer_expired');
                     }
                 }
             }, 1000);
@@ -790,7 +834,11 @@
                 `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        function stopEverything() {
+        function stopEverything(reason = 'unknown') {
+            // Log the call stack to identify what triggered the stop
+            debugLog('⛔ STOP! 原因: ' + reason);
+            debugLog('狀態: 剩餘=' + remainingSeconds + 's, session=' + sessionActive + ', playing=' + isPlaying);
+
             // Save progress before stopping
             saveCurrentProgress();
 
@@ -884,6 +932,7 @@
 
             startSleepTimer();
             startPlaybackWatchdog();
+            debugLog('▶️ 開始播放 定時=' + elements.totalMins.value + '分鐘');
 
             elements.startBtn.textContent = '⏹️ 停止播放';
             elements.startBtn.classList.remove('bg-accent');
@@ -897,17 +946,21 @@
         elements.startBtn.addEventListener('click', () => {
             // Check if currently playing OR if countdown timer is active
             if (isPlaying || countdownInterval) {
-                stopEverything();
+                stopEverything('start_btn_clicked');
             } else {
                 startPlayback();
             }
         });
 
         elements.pauseTimerBtn.addEventListener('click', togglePauseTimer);
-        elements.stopTimerBtn.addEventListener('click', stopEverything);
+        elements.stopTimerBtn.addEventListener('click', () => stopEverything('stop_btn_clicked'));
         elements.clearUrlBtn.addEventListener('click', () => {
             elements.youtubeUrl.value = '';
             elements.youtubeUrl.focus();
+        });
+
+        document.getElementById('clearDebugBtn').addEventListener('click', () => {
+            document.getElementById('debugLog').textContent = '';
         });
 
         document.querySelectorAll('.time-btn').forEach(btn => {
@@ -1069,9 +1122,9 @@
         };
 
         const originalStopEverything = stopEverything;
-        stopEverything = function() {
+        stopEverything = function(reason) {
             stopAudioKeepAlive();
-            originalStopEverything();
+            originalStopEverything(reason || 'wrapper_call');
         };
     </script>
 </body>
