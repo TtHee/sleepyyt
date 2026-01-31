@@ -902,13 +902,38 @@
                                        playerState === YT.PlayerState.UNSTARTED ||
                                        playerState === YT.PlayerState.CUED ||
                                        playerState === -1) {
+
+                                // 如果是 UNSTARTED (-1) 狀態且失敗超過 6 次，直接重新載入
+                                // 因為這種狀態下 playVideo() 通常無效
+                                if ((playerState === -1 || playerState === YT.PlayerState.UNSTARTED) &&
+                                    watchdogFailCount > 6 && lastParsedUrl) {
+                                    debugLog('🐕 Watchdog: UNSTARTED 狀態，強制重新載入...');
+                                    updateStatus('重新載入播放清單...');
+
+                                    if (lastParsedUrl.type === 'playlist') {
+                                        player.loadPlaylist({
+                                            list: lastParsedUrl.playlistId,
+                                            listType: 'playlist',
+                                            index: lastStartIndex,
+                                            startSeconds: lastSkipStart
+                                        });
+                                    } else if (lastParsedUrl.videoId) {
+                                        player.loadVideoById({
+                                            videoId: lastParsedUrl.videoId,
+                                            startSeconds: lastSkipStart
+                                        });
+                                    }
+                                    watchdogFailCount = 0;
+                                    lastWatchdogRecovery = now;
+                                    return;
+                                }
+
                                 // Try to play
                                 player.playVideo();
                                 lastWatchdogRecovery = now;
 
                                 // If still failing after many attempts, try reloading the video
-                                // 但要避免太頻繁重載（至少間隔 30 秒）
-                                if (watchdogFailCount > 8 && lastParsedUrl && (now - lastWatchdogRecovery > 30000)) {
+                                if (watchdogFailCount > 12 && lastParsedUrl) {
                                     debugLog('🐕 Watchdog: 多次失敗，重新載入...');
                                     updateStatus('重新載入中...');
 
