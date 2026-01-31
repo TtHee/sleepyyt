@@ -972,17 +972,35 @@
         // Event Listeners
         // ============================
 
-        elements.startBtn.addEventListener('click', () => {
+        elements.startBtn.addEventListener('click', (e) => {
+            // 記錄點擊事件的詳細資訊
+            debugLog('🖱️ 開始按鈕被點擊! isTrusted=' + e.isTrusted + ' type=' + e.type);
+
             // Check if currently playing OR if countdown timer is active
             if (isPlaying || countdownInterval) {
-                stopEverything('start_btn_clicked');
+                // 加入確認，防止誤觸
+                if (e.isTrusted) {
+                    // 真實的使用者點擊，但還是要確認
+                    debugLog('⚠️ 準備停止播放...');
+                    stopEverything('start_btn_clicked');
+                } else {
+                    // 程式觸發的點擊，忽略
+                    debugLog('🚫 忽略非使用者觸發的點擊');
+                }
             } else {
                 startPlayback();
             }
         });
 
-        elements.pauseTimerBtn.addEventListener('click', togglePauseTimer);
-        elements.stopTimerBtn.addEventListener('click', () => stopEverything('stop_btn_clicked'));
+        elements.pauseTimerBtn.addEventListener('click', (e) => {
+            debugLog('🖱️ 暫停按鈕被點擊! isTrusted=' + e.isTrusted);
+            togglePauseTimer();
+        });
+
+        elements.stopTimerBtn.addEventListener('click', (e) => {
+            debugLog('🖱️ 停止按鈕被點擊! isTrusted=' + e.isTrusted);
+            stopEverything('stop_btn_clicked');
+        });
         elements.clearUrlBtn.addEventListener('click', () => {
             elements.youtubeUrl.value = '';
             elements.youtubeUrl.focus();
