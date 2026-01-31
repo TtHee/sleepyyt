@@ -530,6 +530,12 @@
                 isPlaying = true;
                 handleVideoStart();
                 startProgressChecker();
+
+                // 只有在計時器還沒啟動時才啟動（等緩衝完成後才開始倒數）
+                if (!countdownInterval && sessionActive) {
+                    startSleepTimer();
+                    debugLog('⏱️ 緩衝完成，計時器啟動');
+                }
                 updateStatus('播放中...');
             } else if (event.data === YT.PlayerState.PAUSED) {
                 // Only update status, don't stop progress checker immediately
@@ -563,7 +569,7 @@
                     console.warn('Error handling video end:', e);
                 }
             } else if (event.data === YT.PlayerState.BUFFERING) {
-                updateStatus('緩衝中...');
+                updateStatus('緩衝中... 請稍候');
             } else if (event.data === YT.PlayerState.UNSTARTED) {
                 // Video is unstarted, might need to trigger play
                 console.log('Video unstarted');
@@ -952,9 +958,10 @@
                 updateStatus('載入影片中...');
             }
 
-            startSleepTimer();
+            // 計時器會在影片真正開始播放後才啟動 (在 onPlayerStateChange 中)
+            // startSleepTimer(); -- 移到 PLAYING 狀態時才啟動
             startPlaybackWatchdog();
-            debugLog('▶️ 開始播放 定時=' + elements.totalMins.value + '分鐘');
+            debugLog('▶️ 載入影片中，等待緩衝... 定時=' + elements.totalMins.value + '分鐘');
 
             elements.startBtn.textContent = '⏹️ 停止播放';
             elements.startBtn.classList.remove('bg-accent');
