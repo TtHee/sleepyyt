@@ -318,11 +318,54 @@
         // Detect page reload - will be logged after DOM is ready
         // (moved to DOMContentLoaded handler)
 
-        // Session state for recovery
+        // Session state for recovery - also saved to localStorage
         let sessionActive = false;
         let lastParsedUrl = null;
         let lastStartIndex = 0;
         let lastSkipStart = 0;
+
+        // Save session to localStorage for recovery
+        function saveSession() {
+            try {
+                const session = {
+                    active: sessionActive,
+                    parsedUrl: lastParsedUrl,
+                    startIndex: lastStartIndex,
+                    skipStart: lastSkipStart,
+                    remaining: remainingSeconds,
+                    savedAt: Date.now()
+                };
+                localStorage.setItem('sleepyyt_session', JSON.stringify(session));
+            } catch (e) {}
+        }
+
+        // Restore session from localStorage
+        function restoreSession() {
+            try {
+                const saved = localStorage.getItem('sleepyyt_session');
+                if (saved) {
+                    const session = JSON.parse(saved);
+                    // Only restore if saved within last 5 minutes
+                    if (Date.now() - session.savedAt < 5 * 60 * 1000 && session.active && session.remaining > 0) {
+                        debugLog('🔧 從 localStorage 恢復 session: 剩餘=' + session.remaining + 's');
+                        sessionActive = session.active;
+                        lastParsedUrl = session.parsedUrl;
+                        lastStartIndex = session.startIndex;
+                        lastSkipStart = session.skipStart;
+                        remainingSeconds = session.remaining;
+                        return true;
+                    }
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        // Clear saved session
+        function clearSession() {
+            try {
+                localStorage.removeItem('sleepyyt_session');
+            } catch (e) {}
+        }
 
         // Initialize NoSleep
         try {
@@ -486,14 +529,57 @@
         function onPlayerReady(event) {
             debugLog('🎬 播放器就緒 session=' + sessionActive + ' 剩餘=' + remainingSeconds);
 
+            // 嘗試從 localStorage 恢復 session
+            if (!sessionActive && remainingSeconds === 0) {
+                const restored = restoreSession();
+                if (restored) {
+                    debugLog('✅ Session 已從 localStorage 恢復');
+                }
+            }
+
             // Check if we have an active countdown (more reliable than sessionActive)
             const hasActiveTimer = countdownInterval !== null && remainingSeconds > 0;
 
             // If we had an active session, try to recover it
             if ((sessionActive || hasActiveTimer) && remainingSeconds > 0 && lastParsedUrl) {
-                console.log('Attempting to recover playback session...');
+                debugLog('🔄 嘗試恢復播放...');
                 sessionActive = true; // Ensure sessionActive is set
                 updateStatus('恢復播放中...');
+
+                // 如果計時器沒在運行，重新啟動
+                if (!countdownInterval) {
+                    debugLog('⏱️ 重新啟動計時器，剩餘=' + remainingSeconds + 's');
+                    // 顯示計時器 UI
+                    elements.timerDisplay.classList.remove('hidden');
+                    elements.pauseTimerBtn.textContent = '⏸️ 暫停';
+                    updateCountdownDisplay();
+
+                    // 重新啟動計時器（不重置時間）
+                    lastTimerTick = Date.now();
+                    countdownInterval = setInterval(() => {
+                        if (!timerPaused) {
+                            const now = Date.now();
+                            const elapsed = Math.floor((now - lastTimerTick) / 1000);
+                            if (elapsed > 2) {
+                                debugLog('⚠️ 計時器漂移: ' + elapsed + '秒');
+                                remainingSeconds -= elapsed;
+                            } else {
+                                remainingSeconds--;
+                            }
+                            lastTimerTick = now;
+                            updateCountdownDisplay();
+                            if (remainingSeconds % 5 === 0) {
+                                saveSession();
+                            }
+                            if (remainingSeconds <= 0) {
+                                stopEverything('timer_expired');
+                            }
+                        }
+                    }, 1000);
+
+                    // 重新啟動 watchdog
+                    startPlaybackWatchdog();
+                }
 
                 // Re-start playback
                 setTimeout(() => {
@@ -513,6 +599,7 @@
                         }
                     } catch (e) {
                         console.error('Recovery failed:', e);
+                        debugLog('❌ 恢復失敗: ' + e.message);
                         updateStatus('恢復失敗');
                     }
                 }, 500);
@@ -828,6 +915,11 @@
                     lastTimerTick = now;
                     updateCountdownDisplay();
 
+                    // 每 5 秒保存一次 session
+                    if (remainingSeconds % 5 === 0) {
+                        saveSession();
+                    }
+
                     if (remainingSeconds <= 0) {
                         stopEverything('timer_expired');
                     }
@@ -885,6 +977,9 @@
             timerPaused = false;
             sessionActive = false;
             lastParsedUrl = null;
+
+            // 清除 localStorage 中的 session
+            clearSession();
 
             // Disable NoSleep
             disableNoSleep();
