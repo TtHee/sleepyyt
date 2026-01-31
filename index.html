@@ -518,10 +518,24 @@
 
         // 追蹤 API 初始化次數
         let apiInitCount = 0;
+        let playerRecoveryInProgress = false;
 
         function onYouTubeIframeAPIReady() {
             apiInitCount++;
             debugLog('🎥 YouTube API 初始化 #' + apiInitCount);
+
+            // 如果播放器已存在且正在播放，不要重建
+            if (player && typeof player.getPlayerState === 'function') {
+                try {
+                    const state = player.getPlayerState();
+                    if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+                        debugLog('⚠️ 播放器已存在且運作中，跳過重建');
+                        return;
+                    }
+                } catch (e) {
+                    // 播放器可能已損壞，繼續重建
+                }
+            }
 
             player = new YT.Player('player', {
                 height: '100%',
@@ -543,7 +557,13 @@
         }
 
         function onPlayerReady(event) {
-            debugLog('🎬 播放器就緒 session=' + sessionActive + ' 剩餘=' + remainingSeconds);
+            debugLog('🎬 播放器就緒 session=' + sessionActive + ' 剩餘=' + remainingSeconds + ' recovery=' + playerRecoveryInProgress);
+
+            // 如果正在恢復中，跳過重複處理
+            if (playerRecoveryInProgress) {
+                debugLog('⚠️ 恢復已在進行中，跳過');
+                return;
+            }
 
             // 嘗試從 localStorage 恢復 session
             if (!sessionActive && remainingSeconds === 0) {
@@ -558,6 +578,7 @@
 
             // If we had an active session, try to recover it
             if ((sessionActive || hasActiveTimer) && remainingSeconds > 0 && lastParsedUrl) {
+                playerRecoveryInProgress = true;
                 debugLog('🔄 嘗試恢復播放...');
                 sessionActive = true; // Ensure sessionActive is set
                 updateStatus('恢復播放中...');
@@ -597,7 +618,7 @@
                     startPlaybackWatchdog();
                 }
 
-                // Re-start playback
+                // Re-start playback with longer delay to let player stabilize
                 setTimeout(() => {
                     try {
                         if (lastParsedUrl.type === 'playlist') {
@@ -613,12 +634,17 @@
                                 startSeconds: lastSkipStart
                             });
                         }
+                        // 恢復完成後重置標記
+                        setTimeout(() => {
+                            playerRecoveryInProgress = false;
+                        }, 3000);
                     } catch (e) {
                         console.error('Recovery failed:', e);
                         debugLog('❌ 恢復失敗: ' + e.message);
                         updateStatus('恢復失敗');
+                        playerRecoveryInProgress = false;
                     }
-                }, 500);
+                }, 1000);
             } else if (!hasActiveTimer) {
                 updateStatus('播放器已就緒');
             }
@@ -674,23 +700,24 @@
                 }
             } else if (event.data === YT.PlayerState.BUFFERING) {
                 const now = Date.now();
-                // 如果距離上次緩衝不到 20 秒，計數
-                if (now - lastBufferTime < 20000) {
+                // 如果距離上次緩衝不到 30 秒，計數
+                if (now - lastBufferTime < 30000) {
                     bufferFailCount++;
                     debugLog('⏳ 緩衝中... (連續第 ' + bufferFailCount + ' 次)');
 
-                    // 如果連續緩衝超過 5 次，嘗試跳到下一個影片
-                    if (bufferFailCount >= 5 && lastParsedUrl && lastParsedUrl.type === 'playlist') {
+                    // 如果連續緩衝超過 8 次（約 2 分鐘），嘗試跳到下一個影片
+                    if (bufferFailCount >= 8 && lastParsedUrl && lastParsedUrl.type === 'playlist') {
                         debugLog('⚠️ 緩衝多次失敗，嘗試下一首...');
                         bufferFailCount = 0;
                         setTimeout(() => {
                             if (player && player.nextVideo) {
                                 player.nextVideo();
                             }
-                        }, 1000);
+                        }, 2000);
                     }
                 } else {
                     bufferFailCount = 1;
+                    debugLog('⏳ 緩衝中...');
                 }
                 lastBufferTime = now;
                 updateStatus('緩衝中... 請稍候');
@@ -805,6 +832,7 @@
 
         // Watchdog to ensure playback doesn't stop unexpectedly
         let watchdogFailCount = 0;
+        let lastWatchdogRecovery = 0;
 
         function startPlaybackWatchdog() {
             stopPlaybackWatchdog();
@@ -814,10 +842,15 @@
                 // 如果使用者暫停了計時器或播放，不要自動恢復
                 if (timerPaused || userPaused || remainingSeconds <= 0) return;
 
+                // 如果正在恢復中，跳過
+                if (playerRecoveryInProgress) return;
+
                 // Check if player exists and has methods
                 if (!player || typeof player.getPlayerState !== 'function') {
                     watchdogFailCount++;
-                    debugLog('🐕 Watchdog: 播放器不可用 #' + watchdogFailCount);
+                    if (watchdogFailCount % 5 === 0) {
+                        debugLog('🐕 Watchdog: 播放器不可用 #' + watchdogFailCount);
+                    }
 
                     // Don't give up - just wait for player to reinitialize
                     if (watchdogFailCount > 3 && watchdogFailCount <= 10) {
@@ -829,8 +862,7 @@
                 try {
                     const playerState = player.getPlayerState();
                     const currentTime = player.getCurrentTime();
-
-                    console.log('Watchdog check - State:', playerState, 'Time:', currentTime, 'Remaining:', remainingSeconds);
+                    const now = Date.now();
 
                     // If player is not playing and timer is still active
                     if (playerState !== YT.PlayerState.PLAYING &&
@@ -839,8 +871,13 @@
                         watchdogFailCount++;
 
                         // Check if video time hasn't changed (stuck)
-                        if (Math.abs(currentTime - lastPlayingTime) < 1 || watchdogFailCount > 2) {
-                            console.log('Watchdog: Playback appears stuck, attempting recovery... (fail count:', watchdogFailCount, ')');
+                        if (Math.abs(currentTime - lastPlayingTime) < 1 || watchdogFailCount > 3) {
+                            // 避免太頻繁地嘗試恢復（至少間隔 10 秒）
+                            if (now - lastWatchdogRecovery < 10000) {
+                                return;
+                            }
+
+                            debugLog('🐕 Watchdog: 播放停滯 state=' + playerState + ' fail=' + watchdogFailCount);
 
                             // Try different recovery methods based on state
                             if (playerState === YT.PlayerState.ENDED) {
@@ -860,16 +897,19 @@
                                     player.seekTo(skipStart, true);
                                     player.playVideo();
                                 }
+                                lastWatchdogRecovery = now;
                             } else if (playerState === YT.PlayerState.PAUSED ||
                                        playerState === YT.PlayerState.UNSTARTED ||
                                        playerState === YT.PlayerState.CUED ||
                                        playerState === -1) {
                                 // Try to play
                                 player.playVideo();
+                                lastWatchdogRecovery = now;
 
-                                // If still failing after multiple attempts, try reloading the video
-                                if (watchdogFailCount > 4 && lastParsedUrl) {
-                                    console.log('Watchdog: Multiple failures, reloading video...');
+                                // If still failing after many attempts, try reloading the video
+                                // 但要避免太頻繁重載（至少間隔 30 秒）
+                                if (watchdogFailCount > 8 && lastParsedUrl && (now - lastWatchdogRecovery > 30000)) {
+                                    debugLog('🐕 Watchdog: 多次失敗，重新載入...');
                                     updateStatus('重新載入中...');
 
                                     // Update lastStartIndex to current position if available
@@ -894,6 +934,7 @@
                                         });
                                     }
                                     watchdogFailCount = 0;
+                                    lastWatchdogRecovery = now;
                                 }
                             }
                         }
@@ -906,7 +947,7 @@
                     console.warn('Watchdog error:', e);
                     watchdogFailCount++;
                 }
-            }, 3000); // Check every 3 seconds (more frequent)
+            }, 5000); // Check every 5 seconds (less aggressive)
         }
 
         function stopPlaybackWatchdog() {
@@ -1020,6 +1061,9 @@
             userPaused = false;
             sessionActive = false;
             lastParsedUrl = null;
+            playerRecoveryInProgress = false;
+            bufferFailCount = 0;
+            watchdogFailCount = 0;
 
             // 清除 localStorage 中的 session
             clearSession();
