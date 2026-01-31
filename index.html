@@ -643,16 +643,17 @@
                             });
                         }
 
-                        // 等影片開始播放後取消靜音
+                        // 不要自動 unMute！iOS 會因此暫停播放
+                        // 讓使用者自己點擊影片取消靜音
                         setTimeout(() => {
-                            if (player && player.unMute && player.getPlayerState) {
+                            playerRecoveryInProgress = false;
+                            if (player && player.getPlayerState) {
                                 const state = player.getPlayerState();
                                 if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
-                                    player.unMute();
-                                    debugLog('🔊 取消靜音');
+                                    debugLog('✅ 恢復成功（靜音中，點擊影片取消靜音）');
+                                    updateStatus('已恢復 - 點擊影片取消靜音');
                                 }
                             }
-                            playerRecoveryInProgress = false;
                         }, 3000);
                     } catch (e) {
                         console.error('Recovery failed:', e);
@@ -945,13 +946,13 @@
                                         });
                                     }
 
-                                    // 3 秒後嘗試取消靜音
+                                    // 不要自動 unMute，會導致 iOS 暫停播放
                                     setTimeout(() => {
-                                        if (player && player.unMute && player.getPlayerState) {
+                                        if (player && player.getPlayerState) {
                                             const state = player.getPlayerState();
                                             if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
-                                                player.unMute();
-                                                debugLog('🔊 取消靜音');
+                                                debugLog('✅ Watchdog 恢復成功（靜音中）');
+                                                updateStatus('已恢復 - 點擊影片取消靜音');
                                             }
                                         }
                                     }, 3000);
