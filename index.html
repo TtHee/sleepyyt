@@ -281,20 +281,42 @@
         let noSleep = null;
         let lastPlayingTime = 0;
 
-        // Debug logging for mobile
+        // Debug logging for mobile - persisted to localStorage
         function debugLog(msg) {
-            const logEl = document.getElementById('debugLog');
-            if (logEl) {
-                const time = new Date().toLocaleTimeString('zh-TW');
-                logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
-                // Keep only last 50 lines
-                const lines = logEl.textContent.split('\n');
-                if (lines.length > 50) {
-                    logEl.textContent = lines.slice(0, 50).join('\n');
+            const time = new Date().toLocaleTimeString('zh-TW');
+            const logLine = `[${time}] ${msg}`;
+
+            // Save to localStorage for persistence across page reloads
+            try {
+                let logs = JSON.parse(localStorage.getItem('sleepyyt_debug') || '[]');
+                logs.unshift(logLine);
+                if (logs.length > 50) logs = logs.slice(0, 50);
+                localStorage.setItem('sleepyyt_debug', JSON.stringify(logs));
+
+                // Update display
+                const logEl = document.getElementById('debugLog');
+                if (logEl) {
+                    logEl.textContent = logs.join('\n');
                 }
+            } catch (e) {
+                console.warn('Debug log error:', e);
             }
             console.log(msg);
         }
+
+        // Load persisted logs on page load
+        function loadDebugLogs() {
+            try {
+                const logs = JSON.parse(localStorage.getItem('sleepyyt_debug') || '[]');
+                const logEl = document.getElementById('debugLog');
+                if (logEl && logs.length > 0) {
+                    logEl.textContent = logs.join('\n');
+                }
+            } catch (e) {}
+        }
+
+        // Detect page reload
+        debugLog('🔄 頁面載入/重新載入');
 
         // Session state for recovery
         let sessionActive = false;
@@ -961,7 +983,11 @@
 
         document.getElementById('clearDebugBtn').addEventListener('click', () => {
             document.getElementById('debugLog').textContent = '';
+            localStorage.removeItem('sleepyyt_debug');
         });
+
+        // Load persisted debug logs
+        loadDebugLogs();
 
         document.querySelectorAll('.time-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -998,12 +1024,30 @@
         const firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-        // Prevent accidental navigation
+        // Prevent accidental navigation and log unload events
         window.addEventListener('beforeunload', (e) => {
-            if (isPlaying) {
+            debugLog('⚠️ beforeunload 觸發!');
+            if (isPlaying || countdownInterval) {
                 e.preventDefault();
                 e.returnValue = '';
             }
+        });
+
+        window.addEventListener('unload', () => {
+            debugLog('⚠️ unload 觸發!');
+        });
+
+        window.addEventListener('pagehide', (e) => {
+            debugLog('⚠️ pagehide 觸發! persisted=' + e.persisted);
+        });
+
+        // Catch all errors
+        window.addEventListener('error', (e) => {
+            debugLog('❌ 錯誤: ' + e.message);
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            debugLog('❌ Promise錯誤: ' + e.reason);
         });
 
         // ============================
