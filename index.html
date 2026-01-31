@@ -135,6 +135,15 @@
             </span>
         </div>
 
+        <!-- Debug Log (moved to top for visibility) -->
+        <div id="debugPanel" class="mb-4 bg-red-900/30 rounded-xl p-3 border border-red-800">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-red-400 text-xs font-bold">🔍 除錯日誌 (測試中)</span>
+                <button id="clearDebugBtn" class="text-xs text-red-400 px-2 py-1 bg-red-500/20 rounded">清除</button>
+            </div>
+            <div id="debugLog" class="text-xs text-yellow-300 font-mono h-24 overflow-y-auto whitespace-pre-wrap break-all bg-black/30 p-2 rounded"></div>
+        </div>
+
         <!-- Settings Panel -->
         <div class="bg-darker rounded-xl p-4 border border-slate-800 mb-4">
 
@@ -254,15 +263,6 @@
             </p>
         </footer>
 
-        <!-- Debug Log (for mobile debugging) -->
-        <div id="debugPanel" class="mt-4 bg-darker rounded-xl p-3 border border-slate-800">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-slate-400 text-xs">除錯日誌</span>
-                <button id="clearDebugBtn" class="text-xs text-red-400 px-2 py-1 bg-red-500/20 rounded">清除</button>
-            </div>
-            <div id="debugLog" class="text-xs text-green-400 font-mono h-32 overflow-y-auto whitespace-pre-wrap break-all"></div>
-        </div>
-
     </div>
 
     <!-- YouTube IFrame API -->
@@ -315,8 +315,8 @@
             } catch (e) {}
         }
 
-        // Detect page reload
-        debugLog('🔄 頁面載入/重新載入');
+        // Detect page reload - will be logged after DOM is ready
+        // (moved to DOMContentLoaded handler)
 
         // Session state for recovery
         let sessionActive = false;
@@ -986,9 +986,6 @@
             localStorage.removeItem('sleepyyt_debug');
         });
 
-        // Load persisted debug logs
-        loadDebugLogs();
-
         document.querySelectorAll('.time-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const adjust = parseInt(btn.dataset.adjust);
@@ -1016,6 +1013,8 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
+            loadDebugLogs();
+            debugLog('🔄 頁面載入');
         });
 
         // Load YouTube IFrame API
