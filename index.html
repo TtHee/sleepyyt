@@ -546,7 +546,8 @@
                     'modestbranding': 1,
                     'fs': 0,
                     'controls': 1,
-                    'enablejsapi': 1
+                    'enablejsapi': 1,
+                    'autoplay': 1  // iOS 需要 autoplay 配合 mute 才能自動播放
                 },
                 events: {
                     'onReady': onPlayerReady,
@@ -621,6 +622,13 @@
                 // Re-start playback with longer delay to let player stabilize
                 setTimeout(() => {
                     try {
+                        // iOS Safari 需要先靜音才能自動播放
+                        // 先靜音，載入後再嘗試取消靜音
+                        if (player.mute) {
+                            player.mute();
+                            debugLog('🔇 先靜音以允許自動播放');
+                        }
+
                         if (lastParsedUrl.type === 'playlist') {
                             player.loadPlaylist({
                                 list: lastParsedUrl.playlistId,
@@ -634,8 +642,16 @@
                                 startSeconds: lastSkipStart
                             });
                         }
-                        // 恢復完成後重置標記
+
+                        // 等影片開始播放後取消靜音
                         setTimeout(() => {
+                            if (player && player.unMute && player.getPlayerState) {
+                                const state = player.getPlayerState();
+                                if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+                                    player.unMute();
+                                    debugLog('🔊 取消靜音');
+                                }
+                            }
                             playerRecoveryInProgress = false;
                         }, 3000);
                     } catch (e) {
@@ -910,6 +926,11 @@
                                     debugLog('🐕 Watchdog: UNSTARTED 狀態，強制重新載入...');
                                     updateStatus('重新載入播放清單...');
 
+                                    // iOS 需要先靜音才能自動播放
+                                    if (player.mute) {
+                                        player.mute();
+                                    }
+
                                     if (lastParsedUrl.type === 'playlist') {
                                         player.loadPlaylist({
                                             list: lastParsedUrl.playlistId,
@@ -923,6 +944,18 @@
                                             startSeconds: lastSkipStart
                                         });
                                     }
+
+                                    // 3 秒後嘗試取消靜音
+                                    setTimeout(() => {
+                                        if (player && player.unMute && player.getPlayerState) {
+                                            const state = player.getPlayerState();
+                                            if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+                                                player.unMute();
+                                                debugLog('🔊 取消靜音');
+                                            }
+                                        }
+                                    }, 3000);
+
                                     watchdogFailCount = 0;
                                     lastWatchdogRecovery = now;
                                     return;
