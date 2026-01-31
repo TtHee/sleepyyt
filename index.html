@@ -331,6 +331,9 @@
         let bufferFailCount = 0;
         let lastBufferTime = 0;
 
+        // 使用者主動暫停標記（防止自動恢復）
+        let userPaused = false;
+
         // Save session to localStorage for recovery
         function saveSession() {
             try {
@@ -513,7 +516,13 @@
         // YouTube Player Setup
         // ============================
 
+        // 追蹤 API 初始化次數
+        let apiInitCount = 0;
+
         function onYouTubeIframeAPIReady() {
+            apiInitCount++;
+            debugLog('🎥 YouTube API 初始化 #' + apiInitCount);
+
             player = new YT.Player('player', {
                 height: '100%',
                 width: '100%',
@@ -752,12 +761,9 @@
 
                     // Check if player is actually playing (state 1)
                     if (playerState !== YT.PlayerState.PLAYING) {
-                        // If timer is still running and player stopped unexpectedly, try to resume
-                        if (remainingSeconds > 0 && !timerPaused &&
-                            (playerState === YT.PlayerState.PAUSED || playerState === YT.PlayerState.UNSTARTED)) {
-                            console.log('Player stopped unexpectedly, attempting to resume...');
-                            player.playVideo();
-                        }
+                        // 如果使用者按了暫停，不要自動恢復
+                        // 只有在 sessionActive 且非暫停狀態下才嘗試恢復
+                        // 移除自動恢復邏輯，讓 watchdog 處理
                         return;
                     }
 
@@ -805,7 +811,8 @@
             watchdogFailCount = 0;
 
             playbackWatchdogId = setInterval(() => {
-                if (timerPaused || remainingSeconds <= 0) return;
+                // 如果使用者暫停了計時器或播放，不要自動恢復
+                if (timerPaused || userPaused || remainingSeconds <= 0) return;
 
                 // Check if player exists and has methods
                 if (!player || typeof player.getPlayerState !== 'function') {
@@ -957,19 +964,26 @@
 
         function togglePauseTimer() {
             timerPaused = !timerPaused;
+            userPaused = timerPaused;  // 設定使用者暫停標記
+
+            debugLog('⏯️ 暫停切換: timerPaused=' + timerPaused + ' userPaused=' + userPaused);
 
             if (timerPaused) {
                 // Pause video too
                 if (player && player.pauseVideo) {
                     player.pauseVideo();
                 }
+                // 停止所有自動恢復機制
+                stopProgressChecker();
                 elements.pauseTimerBtn.textContent = '▶️ 繼續';
                 updateStatus('已暫停');
             } else {
                 // Resume video
+                userPaused = false;
                 if (player && player.playVideo) {
                     player.playVideo();
                 }
+                startProgressChecker();
                 elements.pauseTimerBtn.textContent = '⏸️ 暫停';
                 updateStatus('播放中...');
             }
@@ -1003,6 +1017,7 @@
             stopPlaybackWatchdog();
             isPlaying = false;
             timerPaused = false;
+            userPaused = false;
             sessionActive = false;
             lastParsedUrl = null;
 
